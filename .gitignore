@@ -13,6 +13,10 @@ presentation_system.db
 uploads/
 !uploads/.gitkeep
 
+# PM2 logs
+logs/*.log
+!logs/.gitkeep
+
 # Environment files
 .env
 .env.local
