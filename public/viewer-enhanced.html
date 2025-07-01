@@ -1,0 +1,1257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Viewer - PDF Presentation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            overflow: hidden;
+        }
+        
+        .viewer-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+        
+        .top-bar {
+            background: #333;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            z-index: 100;
+        }
+        
+        .presentation-title {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        
+        .slide-info {
+            font-size: 16px;
+            color: #ccc;
+        }
+        
+        .follow-toggle {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .toggle-switch {
+            position: relative;
+            width: 50px;
+            height: 24px;
+            background: #666;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .toggle-switch.active {
+            background: #007bff;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            top: 2px;
+            left: 2px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+        
+        .toggle-switch.active .toggle-slider {
+            transform: translateX(26px);
+        }
+        
+        .navigation-controls, .zoom-controls {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .nav-btn, .zoom-btn, .fullscreen-btn {
+            padding: 8px 15px;
+            border: none;
+            border-radius: 4px;
+            background: #555;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 14px;
+        }
+        
+        .nav-btn:hover:not(:disabled), .zoom-btn:hover:not(:disabled), .fullscreen-btn:hover {
+            background: #666;
+        }
+        
+        .nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .zoom-btn {
+            min-width: 40px;
+            font-weight: bold;
+        }
+        
+        .fullscreen-btn {
+            background: #28a745;
+        }
+        
+        .fullscreen-btn:hover {
+            background: #218838;
+        }
+        
+        .zoom-level {
+            font-size: 14px;
+            color: #ccc;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .navigation-menu {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        
+        .nav-menu-btn {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 11px;
+            text-decoration: none;
+        }
+        
+        .nav-menu-btn:hover {
+            background: #0056b3;
+        }
+        
+        .nav-menu-btn:visited {
+            color: white;
+        }
+        
+        .slide-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+            background: #1a1a1a;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+        
+        /* Fullscreen mode styles */
+        .slide-container:fullscreen {
+            background: #000;
+            border-radius: 0;
+            box-shadow: none;
+            padding: 20px;
+        }
+        
+        .slide-container:fullscreen .pdf-canvas {
+            max-width: 100vw;
+            max-height: 100vh;
+            width: auto;
+            height: auto;
+            object-fit: contain;
+        }
+        
+        .pdf-canvas {
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            display: block;
+            margin: auto;
+        }
+        
+        .presenter-overlay {
+            position: absolute;
+            border-radius: 8px;
+            pointer-events: none;
+            z-index: 2;
+        }
+        
+        .laser-pointer {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: radial-gradient(circle, red 0%, rgba(255,0,0,0.5) 70%, transparent 100%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 3;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+        
+        .spotlight-overlay {
+            position: absolute;
+            background: rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+            z-index: 2;
+            opacity: 0;
+            transition: opacity 0.3s;
+            border-radius: 8px;
+        }
+        
+        .load-status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 18px;
+        }
+        
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+        
+        .connection-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+        
+        .connection-indicator.connected {
+            background: #28a745;
+            animation: none;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        
+        .follow-indicator {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 123, 255, 0.9);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .follow-indicator.show {
+            opacity: 1;
+        }
+        
+        .presenter-tools-indicator {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            background: rgba(220, 53, 69, 0.9);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .presenter-tools-indicator.show {
+            opacity: 1;
+        }
+        
+        /* Bottom hover navigation */
+        .bottom-hover-area {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 80px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        .bottom-nav-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px 20px;
+            border-radius: 30px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .bottom-hover-area:hover .bottom-nav-controls {
+            opacity: 1;
+        }
+        
+        .bottom-nav-btn {
+            background: #444;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 50px;
+            justify-content: center;
+        }
+        
+        .bottom-nav-btn:hover:not(:disabled) {
+            background: #555;
+            transform: translateY(-2px);
+        }
+        
+        .bottom-nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .bottom-nav-btn.prev-btn {
+            background: #007bff;
+        }
+        
+        .bottom-nav-btn.prev-btn:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        
+        .bottom-nav-btn.next-btn {
+            background: #007bff;
+        }
+        
+        .bottom-nav-btn.next-btn:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        
+        .slide-counter {
+            background: #333;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            min-width: 80px;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="viewer-container">
+        <div class="top-bar">
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div style="display: flex; align-items: center;">
+                    <div class="connection-indicator" id="connectionIndicator"></div>
+                    <div class="presentation-title">Enhanced PDF Presentation</div>
+                </div>
+                
+                <div class="navigation-menu">
+                    <a href="/" class="nav-menu-btn">🏠 Home</a>
+                    <a href="/sessions" class="nav-menu-btn">📺 Sessions</a>
+                    <button onclick="exitSession()" class="nav-menu-btn" style="background: #dc3545;">🚪 Exit</button>
+                </div>
+            </div>
+            
+            <div class="controls">
+                <div class="slide-info">
+                    Slide <span id="currentSlide">1</span> of <span id="totalSlides">-</span>
+                </div>
+                
+                <div class="slide-info" style="font-size: 12px; color: #999;">
+                    Session: <span id="sessionId">...</span>
+                </div>
+                
+                <div class="zoom-controls">
+                    <button class="zoom-btn" id="zoomOutBtn">−</button>
+                    <div class="zoom-level" id="zoomLevel">100%</div>
+                    <button class="zoom-btn" id="zoomInBtn">+</button>
+                </div>
+                
+                <div class="follow-toggle">
+                    <span>Follow Presenter</span>
+                    <div class="toggle-switch active" id="followToggle">
+                        <div class="toggle-slider"></div>
+                    </div>
+                </div>
+                
+                <div class="navigation-controls">
+                    <button class="nav-btn" id="prevBtn">◀</button>
+                    <button class="nav-btn" id="nextBtn">▶</button>
+                </div>
+                
+                <button class="fullscreen-btn" id="fullscreenBtn">⛶ Fullscreen</button>
+            </div>
+        </div>
+        
+        <div class="slide-container" id="slideContainer">
+            <div id="loadStatus" class="load-status loading">Loading presentation...</div>
+            <div class="follow-indicator" id="followIndicator">Following presenter</div>
+            <div class="presenter-tools-indicator" id="presenterToolsIndicator">Presenter is using tools</div>
+            
+            <canvas id="pdfCanvas" class="pdf-canvas" style="display: none;"></canvas>
+            <canvas id="presenterOverlay" class="presenter-overlay"></canvas>
+            <div class="laser-pointer" id="laserPointer"></div>
+            <div class="spotlight-overlay" id="spotlightOverlay"></div>
+            
+            <!-- Bottom hover navigation -->
+            <div class="bottom-hover-area">
+                <div class="bottom-nav-controls">
+                    <button class="bottom-nav-btn prev-btn" id="bottomPrevBtn">◀</button>
+                    <div class="slide-counter">
+                        <span id="bottomCurrentSlide">1</span> / <span id="bottomTotalSlides">-</span>
+                    </div>
+                    <button class="bottom-nav-btn next-btn" id="bottomNextBtn">▶</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // PDF.js setup
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.worker.min.js';
+        
+        let pdfDoc = null;
+        let currentSlide = 1;
+        let totalSlides = 0;
+        let socket = null;
+        let followPresenter = true;
+        let currentZoom = 1.5;
+        let isDragging = false;
+        let lastX = 0, lastY = 0;
+        let currentPdfFile = null;
+        let sessionStateReceived = false;
+        let pendingSessionState = null;
+        
+        // DOM elements
+        const canvas = document.getElementById('pdfCanvas');
+        const ctx = canvas.getContext('2d');
+        const presenterOverlay = document.getElementById('presenterOverlay');
+        const overlayCtx = presenterOverlay.getContext('2d');
+        const loadStatus = document.getElementById('loadStatus');
+        const currentSlideSpan = document.getElementById('currentSlide');
+        const totalSlidesSpan = document.getElementById('totalSlides');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const followToggle = document.getElementById('followToggle');
+        const connectionIndicator = document.getElementById('connectionIndicator');
+        const followIndicator = document.getElementById('followIndicator');
+        const presenterToolsIndicator = document.getElementById('presenterToolsIndicator');
+        const slideContainer = document.getElementById('slideContainer');
+        const laserPointer = document.getElementById('laserPointer');
+        const spotlightOverlay = document.getElementById('spotlightOverlay');
+        
+        // Zoom controls
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const zoomLevel = document.getElementById('zoomLevel');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        
+        // Bottom navigation elements
+        const bottomPrevBtn = document.getElementById('bottomPrevBtn');
+        const bottomNextBtn = document.getElementById('bottomNextBtn');
+        const bottomCurrentSlide = document.getElementById('bottomCurrentSlide');
+        const bottomTotalSlides = document.getElementById('bottomTotalSlides');
+        
+        // Get session ID from URL
+        function getSessionId() {
+            const pathParts = window.location.pathname.split('/');
+            return pathParts[pathParts.length - 1];
+        }
+        
+        // Initialize socket connection
+        function initSocket() {
+            const sessionId = getSessionId();
+            if (!sessionId) {
+                console.error('No session ID found in URL');
+                loadStatus.textContent = 'Invalid session URL';
+                return;
+            }
+            
+            // Display session ID (first 8 characters for brevity)
+            const sessionIdElement = document.getElementById('sessionId');
+            if (sessionIdElement) {
+                sessionIdElement.textContent = sessionId.substring(0, 8) + '...';
+            }
+            
+            socket = io();
+            
+            socket.on('connect', () => {
+                connectionIndicator.classList.add('connected');
+                socket.emit('join-viewer', { sessionId });
+            });
+            
+            socket.on('disconnect', () => {
+                connectionIndicator.classList.remove('connected');
+            });
+            
+            socket.on('error', (data) => {
+                console.error('Socket error:', data.message);
+                loadStatus.textContent = data.message;
+                loadStatus.classList.remove('loading');
+            });
+            
+            socket.on('session-state', (state) => {
+                console.log('Session state received:', state);
+                
+                // Store session state for initial load
+                pendingSessionState = state;
+                sessionStateReceived = true;
+                
+                // Update PDF file if different
+                if (state.pdfFile && state.pdfFile !== currentPdfFile) {
+                    currentPdfFile = state.pdfFile;
+                    loadPDF();
+                    return; // loadPDF will handle the rest when PDF is ready
+                }
+                
+                // If PDF is already loaded or loading, apply session state
+                if (pdfDoc) {
+                    applySessionState(state);
+                } else if (!currentPdfFile) {
+                    // No PDF specified, load default
+                    loadPDF();
+                }
+            });
+            
+            socket.on('slide-changed', (data) => {
+                if (followPresenter && data.fromPresenter) {
+                    goToSlide(data.slideNumber, false);
+                    showFollowIndicator();
+                }
+            });
+            
+            socket.on('total-slides-updated', (data) => {
+                totalSlides = data.total;
+                totalSlidesSpan.textContent = totalSlides;
+                updateUI();
+            });
+            
+            // Enhanced presenter tool events
+            socket.on('laser-pointer-update', (data) => {
+                updateLaserPointer(data);
+            });
+            
+            socket.on('annotation-update', (data) => {
+                drawAnnotation(data);
+            });
+            
+            socket.on('spotlight-update', (data) => {
+                updateSpotlight(data);
+            });
+            
+            socket.on('clear-annotations', () => {
+                clearAnnotations();
+            });
+            
+            // Handle PDF file changes (when presenter uploads new PDF)
+            socket.on('pdf-changed', (data) => {
+                console.log('PDF changed event received:', data);
+                if (data.pdfFile !== currentPdfFile) {
+                    console.log(`Loading new PDF: ${data.pdfFile}`);
+                    currentPdfFile = data.pdfFile;
+                    currentSlide = data.currentSlide || 1;
+                    totalSlides = data.totalSlides || 0;
+                    loadPDF();
+                    
+                    // Show notification to viewer
+                    if (loadStatus) {
+                        loadStatus.style.display = 'block';
+                        loadStatus.textContent = 'Loading new presentation...';
+                        loadStatus.classList.add('loading');
+                    }
+                }
+            });
+        }
+        
+        // Apply session state to current presentation
+        function applySessionState(state) {
+            console.log('Applying session state:', state);
+            
+            if (followPresenter && state.currentSlide !== currentSlide) {
+                console.log(`Syncing to presenter's slide ${state.currentSlide}`);
+                goToSlide(state.currentSlide, false);
+                showFollowIndicator();
+            }
+            if (state.totalSlides && state.totalSlides !== totalSlides) {
+                totalSlides = state.totalSlides;
+                totalSlidesSpan.textContent = totalSlides;
+                updateUI();
+            }
+        }
+        
+        // Load and render PDF
+        async function loadPDF() {
+            try {
+                let url;
+                if (currentPdfFile) {
+                    // Add cache-busting parameter to ensure fresh PDF load
+                    url = `/uploads/${currentPdfFile}?t=${Date.now()}`;
+                } else {
+                    // Fallback to default PDF if no session PDF
+                    url = '/docs/Verilog_Basic.pdf';
+                }
+                
+                pdfDoc = await pdfjsLib.getDocument(url).promise;
+                totalSlides = pdfDoc.numPages;
+                totalSlidesSpan.textContent = totalSlides;
+                
+                // Show canvas first and force layout calculation
+                loadStatus.style.display = 'none';
+                canvas.style.display = 'block';
+                
+                // Force browser to calculate layout
+                slideContainer.getBoundingClientRect();
+                
+                // Wait for session state if not received yet (with timeout)
+                if (!sessionStateReceived) {
+                    console.log('Waiting for session state before initial render...');
+                    let waitTime = 0;
+                    while (!sessionStateReceived && waitTime < 2000) {
+                        await new Promise(resolve => setTimeout(resolve, 100));
+                        waitTime += 100;
+                    }
+                }
+                
+                // Determine initial slide from session state or default to 1
+                let initialSlide = 1;
+                if (pendingSessionState && pendingSessionState.currentSlide) {
+                    initialSlide = pendingSessionState.currentSlide;
+                    currentSlide = initialSlide;
+                    console.log(`Using slide ${initialSlide} from session state`);
+                }
+                
+                // Update total slides from session state if available
+                if (pendingSessionState && pendingSessionState.totalSlides) {
+                    totalSlides = pendingSessionState.totalSlides;
+                    totalSlidesSpan.textContent = totalSlides;
+                }
+                
+                // Calculate optimal zoom BEFORE rendering anything
+                await calculateOptimalZoomSync();
+                console.log(`PDF loaded successfully: ${totalSlides} slides, using optimal zoom ${Math.round(currentZoom * 100)}%`);
+                
+                // Now render the correct slide with optimal zoom
+                await renderSlide(initialSlide);
+                setupOverlayCanvas();
+                updateUI();
+                
+                // Apply any remaining session state
+                if (pendingSessionState) {
+                    applySessionState(pendingSessionState);
+                }
+                
+            } catch (error) {
+                console.error('Error loading PDF:', error);
+                loadStatus.textContent = 'Error loading presentation. The presenter may not have uploaded a PDF yet.';
+                loadStatus.classList.remove('loading');
+            }
+        }
+        
+        // Calculate optimal zoom to fit slide in container with retry mechanism
+        async function calculateOptimalZoom(retryCount = 0) {
+            if (!pdfDoc) return;
+            
+            try {
+                const page = await pdfDoc.getPage(1);
+                const viewport = page.getViewport({ scale: 1.0, rotation: 0 });
+                
+                // Wait longer on first try to ensure container is rendered
+                const waitTime = retryCount === 0 ? 300 : 100;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                
+                // Get container dimensions
+                let containerWidth = slideContainer.clientWidth - 40;
+                let containerHeight = slideContainer.clientHeight - 40;
+                
+                console.log(`Auto-fit attempt ${retryCount + 1}: Container raw ${slideContainer.clientWidth}x${slideContainer.clientHeight}`);
+                
+                // Check if container dimensions are still not available
+                if ((containerWidth <= 50 || containerHeight <= 50) && retryCount < 3) {
+                    console.log(`Container not ready yet, retrying in ${200 * (retryCount + 1)}ms...`);
+                    setTimeout(() => calculateOptimalZoom(retryCount + 1), 200 * (retryCount + 1));
+                    return;
+                }
+                
+                // Use window dimensions as more reliable fallback
+                if (containerWidth <= 50 || containerHeight <= 50) {
+                    // Use window size with generous padding for headers/controls
+                    containerWidth = window.innerWidth - 120;
+                    containerHeight = window.innerHeight - 180;
+                    console.log(`Using window fallback: ${containerWidth}x${containerHeight}`);
+                }
+                
+                // Ensure reasonable minimum dimensions
+                containerWidth = Math.max(containerWidth, 300);
+                containerHeight = Math.max(containerHeight, 200);
+                
+                // Calculate scale to fit both width and height
+                const scaleX = containerWidth / viewport.width;
+                const scaleY = containerHeight / viewport.height;
+                
+                // Use the smaller scale to ensure it fits completely
+                let optimalScale = Math.min(scaleX, scaleY);
+                
+                // Apply reasonable bounds (wider range for better fit)
+                optimalScale = Math.max(0.2, Math.min(4.0, optimalScale));
+                
+                // If scale is still too small, something went wrong - use safer default
+                if (optimalScale < 0.4) {
+                    optimalScale = 1.2;
+                    console.log('Scale too small, using default 1.2x');
+                }
+                
+                currentZoom = optimalScale;
+                
+                console.log(`Auto-fit SUCCESS: Container ${containerWidth}x${containerHeight}, PDF ${viewport.width}x${viewport.height}, Zoom: ${Math.round(currentZoom * 100)}%`);
+                
+                // If this was called during initial load, re-render
+                if (retryCount >= 0) {
+                    await renderSlide(currentSlide);
+                    updateUI();
+                }
+                
+            } catch (error) {
+                console.error('Error calculating optimal zoom:', error);
+                // Use safe default if calculation fails
+                currentZoom = 1.2;
+            }
+        }
+        
+        // Calculate optimal zoom synchronously without re-rendering (for initial load)
+        async function calculateOptimalZoomSync(retryCount = 0) {
+            if (!pdfDoc) return;
+            
+            try {
+                const page = await pdfDoc.getPage(1);
+                const viewport = page.getViewport({ scale: 1.0, rotation: 0 });
+                
+                // Wait for container to be ready
+                const waitTime = retryCount === 0 ? 300 : 100;
+                await new Promise(resolve => setTimeout(resolve, waitTime));
+                
+                // Get container dimensions
+                let containerWidth = slideContainer.clientWidth - 40;
+                let containerHeight = slideContainer.clientHeight - 40;
+                
+                console.log(`Initial zoom calc attempt ${retryCount + 1}: Container ${slideContainer.clientWidth}x${slideContainer.clientHeight}`);
+                
+                // Check if container dimensions are still not available
+                if ((containerWidth <= 50 || containerHeight <= 50) && retryCount < 3) {
+                    console.log(`Container not ready yet, retrying in ${200 * (retryCount + 1)}ms...`);
+                    await new Promise(resolve => setTimeout(resolve, 200 * (retryCount + 1)));
+                    return calculateOptimalZoomSync(retryCount + 1);
+                }
+                
+                // Use window dimensions as more reliable fallback
+                if (containerWidth <= 50 || containerHeight <= 50) {
+                    containerWidth = window.innerWidth - 120;
+                    containerHeight = window.innerHeight - 180;
+                    console.log(`Using window fallback: ${containerWidth}x${containerHeight}`);
+                }
+                
+                // Ensure reasonable minimum dimensions
+                containerWidth = Math.max(containerWidth, 300);
+                containerHeight = Math.max(containerHeight, 200);
+                
+                // Calculate scale to fit both width and height
+                const scaleX = containerWidth / viewport.width;
+                const scaleY = containerHeight / viewport.height;
+                
+                // Use the smaller scale to ensure it fits completely
+                let optimalScale = Math.min(scaleX, scaleY);
+                
+                // Apply reasonable bounds
+                optimalScale = Math.max(0.2, Math.min(4.0, optimalScale));
+                
+                // If scale is still too small, use safer default
+                if (optimalScale < 0.4) {
+                    optimalScale = 1.2;
+                    console.log('Scale too small, using default 1.2x');
+                }
+                
+                currentZoom = optimalScale;
+                
+                console.log(`Initial zoom calculated: Container ${containerWidth}x${containerHeight}, PDF ${viewport.width}x${viewport.height}, Zoom: ${Math.round(currentZoom * 100)}%`);
+                
+            } catch (error) {
+                console.error('Error calculating initial optimal zoom:', error);
+                // Use safe default if calculation fails
+                currentZoom = 1.2;
+            }
+        }
+        
+        // Setup overlay canvas for presenter tools
+        function setupOverlayCanvas() {
+            presenterOverlay.width = canvas.width;
+            presenterOverlay.height = canvas.height;
+            
+            // Get the canvas position relative to the slide container
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = slideContainer.getBoundingClientRect();
+            
+            // Position overlay to match the canvas exactly
+            presenterOverlay.style.left = (canvasRect.left - containerRect.left) + 'px';
+            presenterOverlay.style.top = (canvasRect.top - containerRect.top) + 'px';
+            presenterOverlay.style.width = canvasRect.width + 'px';
+            presenterOverlay.style.height = canvasRect.height + 'px';
+            
+            // Position spotlight overlay to match the canvas too
+            spotlightOverlay.style.left = (canvasRect.left - containerRect.left) + 'px';
+            spotlightOverlay.style.top = (canvasRect.top - containerRect.top) + 'px';
+            spotlightOverlay.style.width = canvasRect.width + 'px';
+            spotlightOverlay.style.height = canvasRect.height + 'px';
+        }
+        
+        // Render specific slide with current zoom
+        async function renderSlide(slideNum) {
+            if (!pdfDoc || slideNum < 1 || slideNum > totalSlides) return;
+            
+            const page = await pdfDoc.getPage(slideNum);
+            
+            // Create viewport with proper rotation handling
+            const viewport = page.getViewport({ 
+                scale: currentZoom,
+                rotation: 0  // Ensure no rotation issues
+            });
+            
+            // Set canvas dimensions
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            
+            // Clear canvas before rendering
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const renderContext = {
+                canvasContext: ctx,
+                viewport: viewport,
+                background: 'white'  // Ensure white background
+            };
+            
+            try {
+                await page.render(renderContext).promise;
+                console.log(`Rendered slide ${slideNum} at ${Math.round(currentZoom * 100)}% zoom (${canvas.width}x${canvas.height})`);
+            } catch (error) {
+                console.error('Error rendering slide:', error);
+                // Only show error if canvas has reasonable dimensions
+                if (canvas.width > 50 && canvas.height > 50) {
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    ctx.fillStyle = 'black';
+                    ctx.font = '20px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText('Error loading slide', canvas.width / 2, canvas.height / 2);
+                } else {
+                    console.log('Canvas too small for error message, likely zoom calculation issue');
+                }
+            }
+            
+            setupOverlayCanvas();
+            clearAnnotations();
+        }
+        
+        // Update laser pointer position
+        function updateLaserPointer(data) {
+            if (!data.show) {
+                laserPointer.style.opacity = '0';
+                return;
+            }
+            
+            // Get canvas position relative to slide container
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = slideContainer.getBoundingClientRect();
+            
+            // Calculate pointer position relative to canvas
+            const x = (canvasRect.left - containerRect.left) + (data.x * canvasRect.width);
+            const y = (canvasRect.top - containerRect.top) + (data.y * canvasRect.height);
+            
+            laserPointer.style.left = x + 'px';
+            laserPointer.style.top = y + 'px';
+            laserPointer.style.opacity = '1';
+            
+            showPresenterToolsIndicator('Laser Pointer');
+        }
+        
+        // Draw annotations from presenter
+        function drawAnnotation(data) {
+            // Use the same coordinate calculation as laser pointer for consistency
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = slideContainer.getBoundingClientRect();
+            
+            // Convert normalized coordinates (0-1) to canvas pixel coordinates
+            const canvasX = data.x * canvasRect.width;
+            const canvasY = data.y * canvasRect.height;
+            
+            // Convert to overlay canvas coordinates (overlay matches canvas dimensions)
+            const overlayX = canvasX * (presenterOverlay.width / canvasRect.width);
+            const overlayY = canvasY * (presenterOverlay.height / canvasRect.height);
+            
+            overlayCtx.lineWidth = data.size || 3;
+            overlayCtx.lineCap = 'round';
+            overlayCtx.lineJoin = 'round';
+            overlayCtx.strokeStyle = data.color || '#ff0000';
+            
+            if (data.type === 'highlighter') {
+                overlayCtx.globalCompositeOperation = 'multiply';
+                overlayCtx.strokeStyle = (data.color || '#ffff00') + '80';
+                overlayCtx.lineWidth = (data.size || 3) * 3;
+            } else {
+                overlayCtx.globalCompositeOperation = 'source-over';
+            }
+            
+            if (data.action === 'start') {
+                overlayCtx.beginPath();
+                overlayCtx.moveTo(overlayX, overlayY);
+            } else if (data.action === 'draw') {
+                overlayCtx.lineTo(overlayX, overlayY);
+                overlayCtx.stroke();
+            }
+            
+            showPresenterToolsIndicator(data.type === 'highlighter' ? 'Highlighting' : 'Drawing');
+        }
+        
+        // Update spotlight effect
+        function updateSpotlight(data) {
+            if (!data.show) {
+                spotlightOverlay.style.opacity = '0';
+                return;
+            }
+            
+            // Get canvas position relative to slide container
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = slideContainer.getBoundingClientRect();
+            
+            // Calculate spotlight position relative to canvas
+            const x = (canvasRect.left - containerRect.left) + (data.x * canvasRect.width);
+            const y = (canvasRect.top - containerRect.top) + (data.y * canvasRect.height);
+            
+            const spotlightRadius = 100;
+            const maskStyle = `radial-gradient(circle ${spotlightRadius}px at ${x}px ${y}px, transparent 0%, transparent 40%, rgba(0,0,0,0.8) 70%)`;
+            
+            spotlightOverlay.style.background = maskStyle;
+            spotlightOverlay.style.opacity = '1';
+            
+            showPresenterToolsIndicator('Spotlight');
+        }
+        
+        // Clear all annotations
+        function clearAnnotations() {
+            overlayCtx.clearRect(0, 0, presenterOverlay.width, presenterOverlay.height);
+        }
+        
+        // Show presenter tools indicator
+        function showPresenterToolsIndicator(toolName) {
+            presenterToolsIndicator.textContent = `Presenter: ${toolName}`;
+            presenterToolsIndicator.classList.add('show');
+            setTimeout(() => {
+                presenterToolsIndicator.classList.remove('show');
+            }, 2000);
+        }
+        
+        // Update UI elements
+        function updateUI() {
+            currentSlideSpan.textContent = currentSlide;
+            totalSlidesSpan.textContent = totalSlides;
+            prevBtn.disabled = (currentSlide <= 1) || followPresenter;
+            nextBtn.disabled = (currentSlide >= totalSlides) || followPresenter;
+            
+            // Update bottom navigation
+            bottomCurrentSlide.textContent = currentSlide;
+            bottomTotalSlides.textContent = totalSlides;
+            bottomPrevBtn.disabled = (currentSlide <= 1) || followPresenter;
+            bottomNextBtn.disabled = (currentSlide >= totalSlides) || followPresenter;
+            
+            // Update zoom display
+            const zoomPercent = Math.round(currentZoom * 100) + '%';
+            zoomLevel.textContent = zoomPercent;
+            
+            // Update zoom buttons
+            zoomOutBtn.disabled = currentZoom <= 0.25;
+            zoomInBtn.disabled = currentZoom >= 3.0;
+        }
+        
+        // Navigation functions
+        function goToSlide(slideNum, userAction = true) {
+            if (slideNum < 1 || slideNum > totalSlides) return;
+            
+            currentSlide = slideNum;
+            renderSlide(currentSlide);
+            updateUI();
+            
+            // If user manually navigated, disable follow presenter
+            if (userAction && followPresenter) {
+                toggleFollowPresenter();
+            }
+        }
+        
+        function nextSlide() {
+            if (!followPresenter && currentSlide < totalSlides) {
+                goToSlide(currentSlide + 1);
+            }
+        }
+        
+        function prevSlide() {
+            if (!followPresenter && currentSlide > 1) {
+                goToSlide(currentSlide - 1);
+            }
+        }
+        
+        // Zoom functions
+        function zoomIn() {
+            if (currentZoom < 3.0) {
+                currentZoom = Math.min(3.0, currentZoom + 0.25);
+                renderSlide(currentSlide);
+                updateUI();
+            }
+        }
+        
+        function zoomOut() {
+            if (currentZoom > 0.25) {
+                currentZoom = Math.max(0.25, currentZoom - 0.25);
+                renderSlide(currentSlide);
+                updateUI();
+            }
+        }
+        
+        function toggleFollowPresenter() {
+            followPresenter = !followPresenter;
+            followToggle.classList.toggle('active', followPresenter);
+            updateUI();
+            
+            if (followPresenter) {
+                console.log('Follow mode re-enabled, requesting current presenter state...');
+                showFollowIndicator();
+                // Request current presentation state to sync immediately
+                if (socket) {
+                    socket.emit('request-current-state');
+                }
+            } else {
+                console.log('Follow mode disabled, viewer can navigate independently');
+            }
+        }
+        
+        function showFollowIndicator() {
+            followIndicator.classList.add('show');
+            setTimeout(() => {
+                followIndicator.classList.remove('show');
+            }, 2000);
+        }
+        
+        // Exit session function
+        function exitSession() {
+            if (confirm('Are you sure you want to leave this presentation?')) {
+                window.location.href = '/sessions';
+            }
+        }
+        
+        // Fullscreen functionality
+        function toggleFullscreen() {
+            if (!document.fullscreenElement) {
+                slideContainer.requestFullscreen().catch(err => {
+                    console.log(`Error attempting to enable fullscreen: ${err.message}`);
+                });
+            } else {
+                document.exitFullscreen();
+            }
+        }
+
+        // Calculate optimal zoom for fullscreen
+        function calculateFullscreenZoom() {
+            if (!pdfDoc) return currentZoom;
+            
+            // Get current page to calculate dimensions
+            return pdfDoc.getPage(currentSlide).then(page => {
+                const viewport = page.getViewport({ scale: 1.0 });
+                
+                // Use window dimensions when in fullscreen for more reliable sizing
+                const availableWidth = window.innerWidth - 40; // 20px padding on each side
+                const availableHeight = window.innerHeight - 40;
+                
+                // Calculate scale to fit both width and height
+                const scaleX = availableWidth / viewport.width;
+                const scaleY = availableHeight / viewport.height;
+                
+                // Use the smaller scale to ensure it fits completely, cap at 5x
+                const optimalScale = Math.min(scaleX, scaleY, 5.0);
+                console.log(`Fullscreen calc: ${availableWidth}x${availableHeight}, PDF: ${viewport.width}x${viewport.height}, scale: ${optimalScale.toFixed(2)}`);
+                return optimalScale;
+            });
+        }
+
+        // Handle fullscreen change events
+        function handleFullscreenChange() {
+            if (document.fullscreenElement) {
+                // Entering fullscreen - wait a bit for dimensions to update, then calculate optimal scale
+                setTimeout(() => {
+                    calculateFullscreenZoom().then(optimalZoom => {
+                        currentZoom = optimalZoom;
+                        renderSlide(currentSlide);
+                        updateUI();
+                        console.log(`Fullscreen mode: scaled to ${Math.round(optimalZoom * 100)}%`);
+                    });
+                }, 100); // Small delay to ensure fullscreen dimensions are available
+            } else {
+                // Exiting fullscreen - recalculate optimal zoom for normal view
+                setTimeout(async () => {
+                    await calculateOptimalZoom();
+                    renderSlide(currentSlide);
+                    updateUI();
+                    console.log(`Exited fullscreen: Auto-adjusted zoom to ${Math.round(currentZoom * 100)}%`);
+                }, 100);
+            }
+        }
+
+        // Event listeners
+        prevBtn.addEventListener('click', prevSlide);
+        nextBtn.addEventListener('click', nextSlide);
+        followToggle.addEventListener('click', toggleFollowPresenter);
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+        
+        // Bottom navigation event listeners
+        bottomPrevBtn.addEventListener('click', prevSlide);
+        bottomNextBtn.addEventListener('click', nextSlide);
+        
+        // Zoom controls
+        zoomInBtn.addEventListener('click', zoomIn);
+        zoomOutBtn.addEventListener('click', zoomOut);
+        
+        // Pan functionality for zoomed content
+        slideContainer.addEventListener('mousedown', (e) => {
+            if (currentZoom > 1.0) {
+                isDragging = true;
+                lastX = e.clientX;
+                lastY = e.clientY;
+                slideContainer.style.cursor = 'grabbing';
+            }
+        });
+        
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging && currentZoom > 1.0) {
+                const deltaX = e.clientX - lastX;
+                const deltaY = e.clientY - lastY;
+                
+                slideContainer.scrollLeft -= deltaX;
+                slideContainer.scrollTop -= deltaY;
+                
+                lastX = e.clientX;
+                lastY = e.clientY;
+            }
+        });
+        
+        document.addEventListener('mouseup', () => {
+            if (isDragging) {
+                isDragging = false;
+                slideContainer.style.cursor = currentZoom > 1.0 ? 'grab' : 'default';
+            }
+        });
+        
+        // Keyboard navigation and zoom
+        document.addEventListener('keydown', (e) => {
+            // Zoom shortcuts
+            if (e.key === '=' || e.key === '+') {
+                e.preventDefault();
+                zoomIn();
+                return;
+            }
+            if (e.key === '-' || e.key === '_') {
+                e.preventDefault();
+                zoomOut();
+                return;
+            }
+            if (e.key === '0') {
+                e.preventDefault();
+                currentZoom = 1.0;
+                renderSlide(currentSlide);
+                updateUI();
+                return;
+            }
+            
+            // Fullscreen shortcut
+            if (e.key === 'f' || e.key === 'F') {
+                e.preventDefault();
+                toggleFullscreen();
+                return;
+            }
+            
+            // Navigation (only when not following presenter)
+            if (followPresenter) return;
+            
+            switch(e.key) {
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                    e.preventDefault();
+                    prevSlide();
+                    break;
+                case 'ArrowRight':
+                case 'ArrowDown':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+            }
+        });
+        
+        // Add fullscreen change event listener
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        
+        // Auto-adjust zoom when window is resized
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            // Debounce resize events to avoid excessive recalculation
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(async () => {
+                if (pdfDoc && !document.fullscreenElement) {
+                    await calculateOptimalZoom();
+                    renderSlide(currentSlide);
+                    updateUI();
+                    console.log(`Window resized: Auto-adjusted zoom to ${Math.round(currentZoom * 100)}%`);
+                }
+            }, 300);
+        });
+        
+        // Initialize everything
+        initSocket();
+        loadPDF();
+    </script>
+</body>
+</html> 

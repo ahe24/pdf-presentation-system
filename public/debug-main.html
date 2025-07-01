@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DEBUG - Main Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+        }
+        .debug-info {
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-family: monospace;
+        }
+        .btn {
+            background: #4f46e5;
+            color: white;
+            padding: 15px 40px;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            font-size: 1.1rem;
+            margin: 10px;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            color: #333;
+            padding: 40px;
+            border-radius: 20px;
+            max-width: 400px;
+            width: 90%;
+            text-align: center;
+        }
+        .hidden {
+            display: none;
+        }
+        .modal input {
+            width: 100%;
+            padding: 12px;
+            margin: 10px 0;
+            border: 2px solid #ddd;
+            border-radius: 10px;
+        }
+        .modal-btn {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .primary { background: #059669; color: white; }
+        .secondary { background: #6b7280; color: white; }
+    </style>
+</head>
+<body>
+    <h1>🐛 DEBUG - Main Page Test</h1>
+    
+    <div class="debug-info">
+        <div><strong>Debug Information:</strong></div>
+        <div id="debugLog">Loading...</div>
+    </div>
+
+    <div>
+        <h2>Normal User View:</h2>
+        <button class="btn" onclick="showLoginModal()">🔐 Presenter Login</button>
+        <button class="btn" onclick="clearStorage()">🗑️ Clear Storage</button>
+        <button class="btn" onclick="location.href='/session-selector.html'">🚀 Browse Sessions</button>
+    </div>
+
+    <!-- Login Modal -->
+    <div id="loginModal" class="modal hidden">
+        <div class="modal-content">
+            <h3>🔐 Presenter Login</h3>
+            <input type="password" id="passwordInput" placeholder="Enter presenter password" />
+            <div>
+                <button class="modal-btn primary" onclick="login()">Login</button>
+                <button class="modal-btn secondary" onclick="hideLoginModal()">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function log(message) {
+            console.log(message);
+            const debugDiv = document.getElementById('debugLog');
+            debugDiv.innerHTML += '<br>' + new Date().toLocaleTimeString() + ': ' + message;
+        }
+
+        function showLoginModal() {
+            log('showLoginModal() called');
+            try {
+                document.getElementById('loginModal').classList.remove('hidden');
+                document.getElementById('passwordInput').focus();
+                log('Modal should now be visible');
+            } catch (error) {
+                log('ERROR in showLoginModal: ' + error.message);
+            }
+        }
+
+        function hideLoginModal() {
+            log('hideLoginModal() called');
+            try {
+                document.getElementById('loginModal').classList.add('hidden');
+                document.getElementById('passwordInput').value = '';
+                log('Modal should now be hidden');
+            } catch (error) {
+                log('ERROR in hideLoginModal: ' + error.message);
+            }
+        }
+
+        function login() {
+            log('login() called');
+            try {
+                const password = document.getElementById('passwordInput').value;
+                log('Password entered: ' + (password ? '[HIDDEN]' : 'EMPTY'));
+                
+                if (password === '70998') {
+                    sessionStorage.setItem('presenter_authenticated', 'true');
+                    log('Authentication successful - stored in sessionStorage');
+                    hideLoginModal();
+                    alert('✅ Login successful!');
+                } else {
+                    log('Authentication failed - wrong password');
+                    alert('❌ Invalid password. Try again.');
+                    document.getElementById('passwordInput').value = '';
+                    document.getElementById('passwordInput').focus();
+                }
+            } catch (error) {
+                log('ERROR in login: ' + error.message);
+            }
+        }
+
+        function clearStorage() {
+            log('clearStorage() called');
+            sessionStorage.clear();
+            localStorage.clear();
+            log('Storage cleared');
+            location.reload();
+        }
+
+        function checkAuthStatus() {
+            log('checkAuthStatus() called');
+            try {
+                const isAuthenticated = sessionStorage.getItem('presenter_authenticated') === 'true';
+                log('Authentication status: ' + isAuthenticated);
+                
+                if (isAuthenticated) {
+                    log('User is authenticated - should show presenter mode');
+                } else {
+                    log('User is NOT authenticated - should show guest mode');
+                }
+                return isAuthenticated;
+            } catch (error) {
+                log('ERROR in checkAuthStatus: ' + error.message);
+                return false;
+            }
+        }
+
+        // Page load handler
+        document.addEventListener('DOMContentLoaded', function() {
+            log('DOMContentLoaded fired');
+            
+            // Check for any existing authentication
+            const authStatus = checkAuthStatus();
+            
+            // Check if modal is accidentally shown
+            const modal = document.getElementById('loginModal');
+            if (modal && !modal.classList.contains('hidden')) {
+                log('⚠️ MODAL IS VISIBLE ON PAGE LOAD - THIS IS THE BUG!');
+            } else {
+                log('✅ Modal is hidden on page load (correct)');
+            }
+            
+            // Test button functionality
+            log('Page initialization complete');
+        });
+
+        // Error handler
+        window.addEventListener('error', function(e) {
+            log('JAVASCRIPT ERROR: ' + e.message + ' at ' + e.filename + ':' + e.lineno);
+        });
+
+        log('JavaScript loaded');
+    </script>
+</body>
+</html> 

@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enhanced Presenter - PDF Presentation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.min.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a1a;
+            color: white;
+            overflow: hidden;
+        }
+        
+        .presenter-container {
+            height: 100vh;
+            position: relative;
+        }
+        
+        .slide-container {
+            width: 100%;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #2a2a2a;
+            position: relative;
+            overflow: auto;
+        }
+        
+        .canvas-stack {
+            position: relative;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        .pdf-canvas {
+            box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            max-width: 100%;
+            max-height: 100%;
+        }
+        
+        .annotation-canvas, .magnifier-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            border-radius: 8px;
+        }
+        
+        .annotation-canvas {
+            pointer-events: none;
+            z-index: 2;
+        }
+        
+        .magnifier-canvas {
+            z-index: 3;
+            pointer-events: none;
+        }
+        
+        .controls-panel {
+            width: 320px;
+            background: #333;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            overflow-y: auto;
+            z-index: 1001;
+            position: fixed;
+            right: 0;
+            top: 0;
+            height: 100vh;
+            transform: translateX(280px);
+            transition: transform 0.3s ease;
+        }
+        
+        .controls-panel:hover,
+        .controls-panel.show {
+            transform: translateX(0);
+        }
+        
+        .controls-panel::before {
+            content: '';
+            position: absolute;
+            left: -40px;
+            top: 0;
+            width: 40px;
+            height: 100%;
+            background: transparent;
+            z-index: -1;
+        }
+        
+        .menu-tab {
+            position: absolute;
+            left: -40px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 40px;
+            height: 80px;
+            background: #333;
+            border-radius: 8px 0 0 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            font-size: 18px;
+            color: #fff;
+            transition: all 0.3s ease;
+            border: 2px solid #555;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        
+        .menu-tab:hover {
+            background: #444;
+            border-color: #666;
+            transform: translateY(-50%) translateX(-2px);
+        }
+        
+        .controls-panel.show .menu-tab {
+            background: #007bff;
+            border-color: #0056b3;
+        }
+        
+        .control-group {
+            background: #444;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        
+        .control-group h3 {
+            margin-bottom: 10px;
+            color: #fff;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        
+        .tool-buttons {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .tool-btn {
+            padding: 10px;
+            border: none;
+            border-radius: 6px;
+            background: #555;
+            color: white;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .tool-btn:hover {
+            background: #666;
+        }
+        
+        .tool-btn.active {
+            background: #007bff;
+        }
+        
+        .color-palette {
+            display: flex;
+            gap: 5px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        
+        .color-btn {
+            width: 25px;
+            height: 25px;
+            border: 2px solid #666;
+            border-radius: 50%;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .color-btn.active {
+            border-color: #fff;
+            transform: scale(1.1);
+        }
+        
+        .size-control {
+            margin: 10px 0;
+        }
+        
+        .size-slider {
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        .magnifier-size {
+            width: 100%;
+            margin: 5px 0;
+        }
+        
+        .btn, .nav-btn {
+            padding: 10px 15px;
+            border: none;
+            border-radius: 6px;
+            background: #007bff;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin: 2px;
+        }
+        
+        .btn:hover, .nav-btn:hover {
+            background: #0056b3;
+        }
+        
+        .btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .clear-btn {
+            background: #dc3545;
+        }
+        
+        .clear-btn:hover {
+            background: #c82333;
+        }
+        
+        .slide-info {
+            text-align: center;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
+        
+        .nav-menu-btn {
+            padding: 6px 10px;
+            border: none;
+            border-radius: 4px;
+            background: #007bff;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 11px;
+            text-decoration: none;
+            display: inline-block;
+            margin: 2px;
+            text-align: center;
+            min-width: 60px;
+        }
+        
+        .nav-menu-btn:hover {
+            background: #0056b3;
+        }
+        
+        .nav-menu-btn:visited {
+            color: white;
+        }
+        
+        .navigation-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .direct-navigation {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        
+        .direct-navigation label {
+            font-size: 14px;
+            color: #e0e0e0;
+        }
+        
+        .direct-navigation input {
+            width: 60px;
+            padding: 5px 8px;
+            border: 1px solid #555;
+            background: #2a2a2a;
+            color: white;
+            border-radius: 4px;
+            font-size: 14px;
+            text-align: center;
+        }
+        
+        .direct-navigation input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+        }
+        
+        .fit-controls {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        
+        .fit-btn {
+            flex: 1;
+            padding: 8px;
+            font-size: 12px;
+            background: #6c757d;
+        }
+        
+        .fit-btn:hover {
+            background: #5a6268;
+        }
+        
+        .fit-btn.active {
+            background: #007bff;
+        }
+        
+        .zoom-controls {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        
+        .zoom-btn {
+            width: 35px;
+            height: 35px;
+            border: none;
+            border-radius: 6px;
+            background: #007bff;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .zoom-btn:hover {
+            background: #0056b3;
+        }
+        
+        .zoom-btn:disabled {
+            background: #666;
+            cursor: not-allowed;
+        }
+        
+        .zoom-level {
+            min-width: 60px;
+            text-align: center;
+            font-weight: bold;
+            color: #fff;
+        }
+        
+        .zoom-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(40, 167, 69, 0.9);
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 1002;
+        }
+        
+        .zoom-indicator.show {
+            opacity: 1;
+        }
+        
+        .timing-display {
+            margin-bottom: 10px;
+        }
+        
+        .timing-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            padding: 8px 10px;
+            background: #555;
+            border-radius: 4px;
+        }
+        
+        .timing-label {
+            font-size: 14px;
+            color: #e0e0e0;
+            font-weight: 500;
+        }
+        
+        .timing-value {
+            font-size: 16px;
+            font-weight: bold;
+            color: #ffffff;
+            font-family: 'Courier New', monospace;
+            background: #333;
+            padding: 4px 8px;
+            border-radius: 3px;
+            min-width: 60px;
+            text-align: center;
+        }
+        
+        .timing-controls {
+            margin-top: 10px;
+        }
+        
+        .laser-pointer {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: radial-gradient(circle, red 0%, rgba(255,0,0,0.5) 70%, transparent 100%);
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 4;
+            transform: translate(-50%, -50%);
+            opacity: 0;
+            transition: opacity 0.1s;
+        }
+        
+        .spotlight-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            pointer-events: none;
+            z-index: 3;
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .magnifier {
+            position: absolute;
+            border: 3px solid #007bff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 5;
+            opacity: 0;
+            transition: opacity 0.1s;
+            background: white;
+        }
+        
+        .status-indicator {
+            padding: 8px;
+            border-radius: 6px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 12px;
+        }
+        
+        .status-connected {
+            background: #28a745;
+            color: white;
+        }
+        
+        .status-disconnected {
+            background: #dc3545;
+            color: white;
+        }
+        
+        .load-status {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            font-size: 18px;
+        }
+        
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+        
+        .tool-info {
+            background: rgba(0, 123, 255, 0.9);
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            z-index: 6;
+        }
+        
+        .tool-info.show {
+            opacity: 1;
+        }
+        
+        /* Bottom hover navigation */
+        .bottom-hover-area {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 320px; /* Account for controls panel width */
+            height: 80px;
+            z-index: 10;
+            pointer-events: none;
+        }
+        
+        .bottom-nav-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px 20px;
+            border-radius: 30px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: auto;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .bottom-hover-area:hover .bottom-nav-controls {
+            opacity: 1;
+        }
+        
+        .bottom-nav-btn {
+            background: #444;
+            border: none;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 50px;
+            justify-content: center;
+        }
+        
+        .bottom-nav-btn:hover:not(:disabled) {
+            background: #555;
+            transform: translateY(-2px);
+        }
+        
+        .bottom-nav-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .bottom-nav-btn.prev-btn {
+            background: #007bff;
+        }
+        
+        .bottom-nav-btn.prev-btn:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        
+        .bottom-nav-btn.next-btn {
+            background: #007bff;
+        }
+        
+        .bottom-nav-btn.next-btn:hover:not(:disabled) {
+            background: #0056b3;
+        }
+        
+        .slide-counter {
+            background: #333;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            min-width: 80px;
+            justify-content: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="presenter-container">
+        <div class="slide-container" id="slideContainer">
+            <div id="loadStatus" class="load-status loading">Loading PDF...</div>
+            
+            <div class="canvas-stack" id="canvasStack">
+                <canvas id="pdfCanvas" class="pdf-canvas" style="display: none;"></canvas>
+                <canvas id="annotationCanvas" class="annotation-canvas"></canvas>
+                <canvas id="magnifierCanvas" class="magnifier-canvas"></canvas>
+            </div>
+            
+            <div class="laser-pointer" id="laserPointer"></div>
+            <div class="spotlight-overlay" id="spotlightOverlay"></div>
+            <div class="magnifier" id="magnifier"></div>
+            <div class="tool-info" id="toolInfo">Select a tool to start</div>
+            <div class="zoom-indicator" id="zoomIndicator">Fit: Width</div>
+            
+            <!-- Bottom hover navigation -->
+            <div class="bottom-hover-area">
+                <div class="bottom-nav-controls">
+                    <button class="bottom-nav-btn prev-btn" id="bottomPrevBtn">◀</button>
+                    <div class="slide-counter">
+                        <span id="bottomCurrentSlide">1</span> / <span id="bottomTotalSlides">-</span>
+                    </div>
+                    <button class="bottom-nav-btn next-btn" id="bottomNextBtn">▶</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="controls-panel">
+            <div class="menu-tab" title="Show Menu">⚙️</div>
+            <div class="control-group">
+                <h3>🖥️ Display & Zoom</h3>
+                <div class="fit-controls">
+                    <button class="fit-btn active" id="fitWidthBtn">Fit Width</button>
+                    <button class="fit-btn" id="fitHeightBtn">Fit Height</button>
+                    <button class="fit-btn" id="fitPageBtn">Fit Page</button>
+                </div>
+                
+                <div class="zoom-controls">
+                    <button id="zoomOutBtn" class="zoom-btn">−</button>
+                    <div class="zoom-level" id="zoomLevel">100%</div>
+                    <button id="zoomInBtn" class="zoom-btn">+</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>📄 Slide Navigation</h3>
+                <div class="slide-info">
+                    Slide <span id="currentSlide">1</span> of <span id="totalSlides">-</span>
+                </div>
+                <div class="direct-navigation">
+                    <label for="slideInput">Go to slide:</label>
+                    <input type="number" id="slideInput" min="1" max="1" value="1" placeholder="1">
+                    <button id="goToSlideBtn" class="nav-btn">Go</button>
+                </div>
+                <div class="navigation-buttons">
+                    <button id="prevBtn" class="nav-btn">◀ Prev</button>
+                    <button id="nextBtn" class="nav-btn">Next ▶</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>⏱️ Presentation Timing</h3>
+                <div class="timing-display">
+                    <div class="timing-row">
+                        <span class="timing-label">Current Slide:</span>
+                        <span id="slideElapsedTime" class="timing-value">00:00</span>
+                    </div>
+                    <div class="timing-row">
+                        <span class="timing-label">Total Time:</span>
+                        <span id="totalElapsedTime" class="timing-value">00:00</span>
+                    </div>
+                </div>
+                <div class="timing-controls">
+                    <button id="resetTimerBtn" class="btn" style="background: #6c757d; font-size: 12px; padding: 6px 10px;">🔄 Reset Timer</button>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>🎯 Presentation Tools</h3>
+                <div class="tool-buttons">
+                    <button class="tool-btn" id="pointerTool" data-tool="pointer">👆 Pointer</button>
+                    <button class="tool-btn" id="laserTool" data-tool="laser">🔴 Laser</button>
+                    <button class="tool-btn" id="penTool" data-tool="pen">✏️ Pen</button>
+                    <button class="tool-btn" id="highlighterTool" data-tool="highlighter">🖍️ Highlight</button>
+                    <button class="tool-btn" id="magnifierTool" data-tool="magnifier">🔍 Magnify</button>
+                    <button class="tool-btn" id="spotlightTool" data-tool="spotlight">💡 Spotlight</button>
+                </div>
+                
+                <div class="color-palette">
+                    <div class="color-btn active" style="background: #ff0000;" data-color="#ff0000"></div>
+                    <div class="color-btn" style="background: #00ff00;" data-color="#00ff00"></div>
+                    <div class="color-btn" style="background: #0000ff;" data-color="#0000ff"></div>
+                    <div class="color-btn" style="background: #ffff00;" data-color="#ffff00"></div>
+                    <div class="color-btn" style="background: #ff00ff;" data-color="#ff00ff"></div>
+                    <div class="color-btn" style="background: #00ffff;" data-color="#00ffff"></div>
+                    <div class="color-btn" style="background: #ffffff;" data-color="#ffffff"></div>
+                    <div class="color-btn" style="background: #000000;" data-color="#000000"></div>
+                </div>
+                
+                <div class="size-control">
+                    <label>Pen Size: <span id="penSizeValue">3</span>px</label>
+                    <input type="range" class="size-slider" id="penSize" min="1" max="20" value="3">
+                </div>
+                
+                <div class="size-control">
+                    <label>Magnifier: <span id="magnifierSizeValue">150</span>px</label>
+                    <input type="range" class="magnifier-size" id="magnifierSize" min="50" max="300" value="150">
+                </div>
+                
+                <button class="btn clear-btn" id="clearAnnotations">🗑️ Clear All</button>
+            </div>
+            
+            <div class="control-group">
+                <h3>🔗 Connection</h3>
+                <div id="connectionStatus" class="status-indicator status-disconnected">
+                    Connecting...
+                </div>
+                <div style="margin-top: 10px; font-size: 14px;">
+                    <span id="viewersCount">0</span> viewers connected
+                </div>
+                <div style="margin-top: 8px; font-size: 12px; color: #999;">
+                    Session: <span id="sessionId">...</span>
+                </div>
+            </div>
+            
+            <div class="control-group">
+                <h3>🚀 Navigation</h3>
+                <div style="display: flex; gap: 3px; justify-content: space-between;">
+                    <a href="/" class="nav-menu-btn">🏠 Home</a>
+                    <a href="/manage" class="nav-menu-btn">📊 Manage</a>
+                    <button onclick="exitSession()" class="nav-menu-btn" style="background: #dc3545;">🚪 Exit</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // PDF.js setup
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.10.111/pdf.worker.min.js';
+        
+        // State variables
+        let pdfDoc = null;
+        let currentSlide = 1;
+        let totalSlides = 0;
+        let socket = null;
+        let currentZoom = 1.5;
+        let fitMode = 'width'; // 'width', 'height', 'page', 'custom'
+        let currentPdfFile = null;
+        let isRestoringSession = false;
+        let pendingSessionState = null;
+        
+        // Timing variables
+        let presentationStartTime = null;
+        let slideStartTime = null;
+        let timerInterval = null;
+        
+        // Tool state
+        let currentTool = 'pointer';
+        let currentColor = '#ff0000';
+        let penSize = 3;
+        let magnifierSize = 150;
+        let isDrawing = false;
+        let lastX = 0;
+        let lastY = 0;
+        let annotations = [];
+        
+        // DOM elements
+        const canvas = document.getElementById('pdfCanvas');
+        const ctx = canvas.getContext('2d');
+        const annotationCanvas = document.getElementById('annotationCanvas');
+        const annotationCtx = annotationCanvas.getContext('2d');
+        const magnifierCanvas = document.getElementById('magnifierCanvas');
+        const magnifierCtx = magnifierCanvas.getContext('2d');
+        
+        const slideContainer = document.getElementById('slideContainer');
+        const canvasStack = document.getElementById('canvasStack');
+        const laserPointer = document.getElementById('laserPointer');
+        const spotlightOverlay = document.getElementById('spotlightOverlay');
+        const magnifier = document.getElementById('magnifier');
+        const toolInfo = document.getElementById('toolInfo');
+        const zoomIndicator = document.getElementById('zoomIndicator');
+        
+        const currentSlideSpan = document.getElementById('currentSlide');
+        const totalSlidesSpan = document.getElementById('totalSlides');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const slideInput = document.getElementById('slideInput');
+        const goToSlideBtn = document.getElementById('goToSlideBtn');
+        
+        // Bottom navigation elements
+        const bottomPrevBtn = document.getElementById('bottomPrevBtn');
+        const bottomNextBtn = document.getElementById('bottomNextBtn');
+        const bottomCurrentSlide = document.getElementById('bottomCurrentSlide');
+        const bottomTotalSlides = document.getElementById('bottomTotalSlides');
+        const connectionStatus = document.getElementById('connectionStatus');
+        const viewersCount = document.getElementById('viewersCount');
+        const loadStatus = document.getElementById('loadStatus');
+        
+        // Tool controls
+        const toolButtons = document.querySelectorAll('.tool-btn');
+        const colorButtons = document.querySelectorAll('.color-btn');
+        const penSizeSlider = document.getElementById('penSize');
+        const penSizeValue = document.getElementById('penSizeValue');
+        const magnifierSizeSlider = document.getElementById('magnifierSize');
+        const magnifierSizeValue = document.getElementById('magnifierSizeValue');
+        const clearBtn = document.getElementById('clearAnnotations');
+        
+        // Zoom and fit controls
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const zoomLevel = document.getElementById('zoomLevel');
+        const fitWidthBtn = document.getElementById('fitWidthBtn');
+        const fitHeightBtn = document.getElementById('fitHeightBtn');
+        const fitPageBtn = document.getElementById('fitPageBtn');
+        
+        // Timing controls
+        const slideElapsedTime = document.getElementById('slideElapsedTime');
+        const totalElapsedTime = document.getElementById('totalElapsedTime');
+        const resetTimerBtn = document.getElementById('resetTimerBtn');
+        
+        // Get session ID from URL
+        function getSessionId() {
+            const pathParts = window.location.pathname.split('/');
+            return pathParts[pathParts.length - 1];
+        }
+        
+        // Timing functions
+        function formatTime(seconds) {
+            const mins = Math.floor(seconds / 60);
+            const secs = seconds % 60;
+            return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+        
+        function startTiming() {
+            const now = Date.now();
+            if (!presentationStartTime) {
+                presentationStartTime = now;
+            }
+            slideStartTime = now;
+            
+            // Clear any existing timer
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+            
+            // Start timer that updates every second
+            timerInterval = setInterval(updateTimingDisplay, 1000);
+            updateTimingDisplay(); // Update immediately
+        }
+        
+        function updateTimingDisplay() {
+            const now = Date.now();
+            
+            if (presentationStartTime) {
+                const totalSeconds = Math.floor((now - presentationStartTime) / 1000);
+                totalElapsedTime.textContent = formatTime(totalSeconds);
+            }
+            
+            if (slideStartTime) {
+                const slideSeconds = Math.floor((now - slideStartTime) / 1000);
+                slideElapsedTime.textContent = formatTime(slideSeconds);
+            }
+        }
+        
+        function resetSlideTimer() {
+            slideStartTime = Date.now();
+        }
+        
+        function resetAllTimers() {
+            const now = Date.now();
+            presentationStartTime = now;
+            slideStartTime = now;
+            updateTimingDisplay();
+        }
+        
+        // Initialize socket connection
+        function initSocket() {
+            const sessionId = getSessionId();
+            if (!sessionId) {
+                console.error('No session ID found in URL');
+                connectionStatus.textContent = 'Invalid Session';
+                connectionStatus.className = 'status-indicator status-disconnected';
+                return;
+            }
+            
+            // Display session ID (first 8 characters for brevity)
+            const sessionIdElement = document.getElementById('sessionId');
+            if (sessionIdElement) {
+                sessionIdElement.textContent = sessionId.substring(0, 8) + '...';
+            }
+            
+            socket = io();
+            
+            socket.on('connect', () => {
+                connectionStatus.textContent = 'Connected';
+                connectionStatus.className = 'status-indicator status-connected';
+                socket.emit('join-presenter', { sessionId });
+                
+                // Request session state after joining
+                setTimeout(() => {
+                    socket.emit('get-session-state', { sessionId });
+                }, 500);
+            });
+            
+            socket.on('disconnect', () => {
+                connectionStatus.textContent = 'Disconnected';
+                connectionStatus.className = 'status-indicator status-disconnected';
+            });
+            
+            socket.on('error', (data) => {
+                console.error('Socket error:', data.message);
+                connectionStatus.textContent = data.message;
+                connectionStatus.className = 'status-indicator status-disconnected';
+            });
+            
+            // Handle session state updates
+            socket.on('session-state', (data) => {
+                console.log('Session state received:', data);
+                isRestoringSession = true;
+                pendingSessionState = data;
+                
+                // Store session state values
+                if (data.currentSlide) {
+                    currentSlide = data.currentSlide;
+                }
+                if (data.totalSlides) {
+                    totalSlides = data.totalSlides;
+                    totalSlidesSpan.textContent = totalSlides;
+                    slideInput.max = totalSlides;
+                }
+                
+                // Load PDF if changed
+                if (data.pdfFile && data.pdfFile !== currentPdfFile) {
+                    currentPdfFile = data.pdfFile;
+                    loadPDF();
+                } else if (pdfDoc && data.currentSlide && data.currentSlide !== currentSlide) {
+                    // If PDF is already loaded but slide changed, just navigate
+                    goToSlide(data.currentSlide, true);
+                } else if (!pdfDoc) {
+                    // If no PDF loaded yet, trigger initial load
+                    loadPDF();
+                }
+                
+                // Reset flag after a short delay
+                setTimeout(() => {
+                    isRestoringSession = false;
+                    pendingSessionState = null;
+                    
+                    // Start timing if not already started (for session restoration)
+                    if (!timerInterval) {
+                        startTiming();
+                        console.log('Presentation timing started (session restore)');
+                    }
+                }, 1000);
+            });
+            
+            // Handle viewer count updates
+            socket.on('viewer-count-update', (data) => {
+                viewersCount.textContent = data.count;
+                console.log('Viewer count updated:', data.count);
+            });
+            
+            // Handle PDF file changes (when new PDF is uploaded)
+            socket.on('pdf-changed', (data) => {
+                console.log('PDF changed event received:', data);
+                if (data.pdfFile !== currentPdfFile) {
+                    console.log(`Loading new PDF: ${data.pdfFile}`);
+                    currentPdfFile = data.pdfFile;
+                    currentSlide = data.currentSlide || 1;
+                    totalSlides = data.totalSlides || 0;
+                    totalSlidesSpan.textContent = totalSlides;
+                    slideInput.max = totalSlides;
+                    loadPDF();
+                    
+                    // Show notification
+                    if (loadStatus) {
+                        loadStatus.style.display = 'block';
+                        loadStatus.textContent = 'Loading new presentation...';
+                        loadStatus.classList.add('loading');
+                    }
+                }
+            });
+        }
+        
+        // Load and render PDF
+        async function loadPDF() {
+            try {
+                let url;
+                if (currentPdfFile) {
+                    // Add cache-busting parameter to ensure fresh PDF load
+                    url = `/uploads/${currentPdfFile}?t=${Date.now()}`;
+                } else {
+                    // Fallback to default PDF if no session PDF
+                    url = '/docs/Verilog_Basic.pdf';
+                }
+                
+                pdfDoc = await pdfjsLib.getDocument(url).promise;
+                totalSlides = pdfDoc.numPages;
+                totalSlidesSpan.textContent = totalSlides;
+                
+                // Update slide input max value
+                slideInput.max = totalSlides;
+                
+                if (socket) {
+                    socket.emit('total-slides', { total: totalSlides });
+                }
+                
+                // Determine which slide to render
+                let slideToRender = 1;
+                if (isRestoringSession && pendingSessionState && pendingSessionState.currentSlide) {
+                    slideToRender = pendingSessionState.currentSlide;
+                    console.log(`Restoring session to slide ${slideToRender}`);
+                } else if (currentSlide > 1 && currentSlide <= totalSlides) {
+                    slideToRender = currentSlide;
+                }
+                
+                // Add a small delay to ensure container is properly sized
+                setTimeout(async () => {
+                    await renderSlide(slideToRender);
+                    setupCanvases();
+                    updateUI();
+                    
+                    // Start timing when PDF is loaded and first slide is rendered
+                    if (!isRestoringSession) {
+                        startTiming();
+                        console.log('Presentation timing started');
+                    }
+                    
+                    loadStatus.style.display = 'none';
+                    canvas.style.display = 'block';
+                    
+                    console.log(`PDF loaded and rendered slide ${slideToRender}`);
+                }, 100);
+                
+            } catch (error) {
+                console.error('Error loading PDF:', error);
+                loadStatus.textContent = 'Error loading PDF. Please upload a PDF for this session.';
+                loadStatus.classList.remove('loading');
+            }
+        }
+        
+        // Setup overlay canvases
+        function setupCanvases() {
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = slideContainer.getBoundingClientRect();
+            
+            annotationCanvas.width = canvas.width;
+            annotationCanvas.height = canvas.height;
+            annotationCanvas.style.width = canvasRect.width + 'px';
+            annotationCanvas.style.height = canvasRect.height + 'px';
+            
+            magnifierCanvas.width = canvas.width;
+            magnifierCanvas.height = canvas.height;
+            magnifierCanvas.style.width = canvasRect.width + 'px';
+            magnifierCanvas.style.height = canvasRect.height + 'px';
+            
+            // Position spotlight overlay to match the canvas exactly
+            spotlightOverlay.style.left = (canvasRect.left - containerRect.left) + 'px';
+            spotlightOverlay.style.top = (canvasRect.top - containerRect.top) + 'px';
+            spotlightOverlay.style.width = canvasRect.width + 'px';
+            spotlightOverlay.style.height = canvasRect.height + 'px';
+            
+            // Enable drawing on annotation canvas
+            annotationCanvas.style.pointerEvents = 'auto';
+        }
+        
+        // Render specific slide
+        async function renderSlide(slideNum, attempt = 1) {
+            if (!pdfDoc || slideNum < 1 || slideNum > totalSlides) return;
+            
+            const page = await pdfDoc.getPage(slideNum);
+            
+            // Calculate scale based on fit mode
+            if (fitMode !== 'custom') {
+                currentZoom = calculateOptimalScale(page, attempt);
+                
+                // If scale is too small and we haven't exceeded max attempts, retry
+                if (currentZoom < 0.5 && attempt <= 3) {
+                    console.log(`Scale too small (${currentZoom}), retrying in 300ms... (attempt ${attempt}/3)`);
+                    setTimeout(() => renderSlide(slideNum, attempt + 1), 300);
+                    return;
+                }
+            }
+            
+            // Clear canvas before rendering
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Apply white background
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const viewport = page.getViewport({ scale: currentZoom, rotation: 0 });
+            
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            
+            // Clear again after resizing
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const renderContext = {
+                canvasContext: ctx,
+                viewport: viewport
+            };
+            
+            await page.render(renderContext).promise;
+            clearAnnotations();
+            setupCanvases();
+            
+            console.log(`Slide ${slideNum} rendered with scale ${currentZoom} (attempt ${attempt})`);
+        }
+        
+        // Tool functions
+        function setTool(tool) {
+            currentTool = tool;
+            toolButtons.forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`[data-tool="${tool}"]`).classList.add('active');
+            
+            // Update cursor and tool info
+            updateToolInfo();
+            updateCursor();
+        }
+        
+        function updateToolInfo() {
+            const toolNames = {
+                pointer: 'Click and drag to navigate',
+                laser: 'Move mouse to show laser pointer',
+                pen: 'Click and drag to draw',
+                highlighter: 'Click and drag to highlight',
+                magnifier: 'Move mouse to magnify area',
+                spotlight: 'Move mouse to spotlight area'
+            };
+            
+            toolInfo.textContent = toolNames[currentTool];
+            toolInfo.classList.add('show');
+            setTimeout(() => toolInfo.classList.remove('show'), 3000);
+        }
+        
+        function updateCursor() {
+            const cursors = {
+                pointer: 'default',
+                laser: 'crosshair',
+                pen: 'crosshair',
+                highlighter: 'crosshair',
+                magnifier: 'crosshair',
+                spotlight: 'crosshair'
+            };
+            
+            canvasStack.style.cursor = cursors[currentTool];
+        }
+        
+        // Exit session function
+        function exitSession() {
+            if (confirm('Are you sure you want to end this presentation session?')) {
+                window.location.href = '/manage';
+            }
+        }
+        
+        // Drawing functions
+        function startDrawing(e) {
+            if (currentTool !== 'pen' && currentTool !== 'highlighter') return;
+            
+            isDrawing = true;
+            const rect = annotationCanvas.getBoundingClientRect();
+            const scaleX = annotationCanvas.width / rect.width;
+            const scaleY = annotationCanvas.height / rect.height;
+            
+            lastX = (e.clientX - rect.left) * scaleX;
+            lastY = (e.clientY - rect.top) * scaleY;
+            
+            annotationCtx.beginPath();
+            annotationCtx.moveTo(lastX, lastY);
+            
+            // Send start drawing event to viewers
+            if (socket) {
+                socket.emit('annotation', {
+                    action: 'start',
+                    x: (e.clientX - rect.left) / rect.width,
+                    y: (e.clientY - rect.top) / rect.height,
+                    type: currentTool,
+                    color: currentColor,
+                    size: penSize
+                });
+            }
+        }
+        
+        function draw(e) {
+            if (!isDrawing || (currentTool !== 'pen' && currentTool !== 'highlighter')) return;
+            
+            const rect = annotationCanvas.getBoundingClientRect();
+            const scaleX = annotationCanvas.width / rect.width;
+            const scaleY = annotationCanvas.height / rect.height;
+            
+            const currentX = (e.clientX - rect.left) * scaleX;
+            const currentY = (e.clientY - rect.top) * scaleY;
+            
+            annotationCtx.lineWidth = penSize;
+            annotationCtx.lineCap = 'round';
+            annotationCtx.lineJoin = 'round';
+            
+            if (currentTool === 'highlighter') {
+                annotationCtx.globalCompositeOperation = 'multiply';
+                annotationCtx.strokeStyle = currentColor + '80'; // Semi-transparent
+                annotationCtx.lineWidth = penSize * 3;
+            } else {
+                annotationCtx.globalCompositeOperation = 'source-over';
+                annotationCtx.strokeStyle = currentColor;
+            }
+            
+            annotationCtx.lineTo(currentX, currentY);
+            annotationCtx.stroke();
+            annotationCtx.beginPath();
+            annotationCtx.moveTo(currentX, currentY);
+            
+            lastX = currentX;
+            lastY = currentY;
+            
+            // Send drawing event to viewers
+            if (socket) {
+                socket.emit('annotation', {
+                    action: 'draw',
+                    x: (e.clientX - rect.left) / rect.width,
+                    y: (e.clientY - rect.top) / rect.height,
+                    type: currentTool,
+                    color: currentColor,
+                    size: penSize
+                });
+            }
+        }
+        
+        function stopDrawing() {
+            if (isDrawing) {
+                isDrawing = false;
+                annotationCtx.beginPath();
+            }
+        }
+        
+        // Laser pointer
+        function updateLaserPointer(e) {
+            if (currentTool !== 'laser') {
+                laserPointer.style.opacity = '0';
+                return;
+            }
+            
+            // Get canvas position relative to the slide container
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = slideContainer.getBoundingClientRect();
+            
+            // Calculate mouse position relative to canvas
+            const x = e.clientX - canvasRect.left;
+            const y = e.clientY - canvasRect.top;
+            
+            // Position laser pointer relative to slide container (accounting for canvas position)
+            const laserX = (canvasRect.left - containerRect.left) + x;
+            const laserY = (canvasRect.top - containerRect.top) + y;
+            
+            // Only show laser if mouse is within canvas bounds
+            if (x >= 0 && x <= canvasRect.width && y >= 0 && y <= canvasRect.height) {
+                laserPointer.style.left = laserX + 'px';
+                laserPointer.style.top = laserY + 'px';
+                laserPointer.style.opacity = '1';
+                
+                // Send to viewers (normalized coordinates relative to canvas)
+                if (socket) {
+                    socket.emit('laser-pointer', {
+                        x: x / canvasRect.width,
+                        y: y / canvasRect.height,
+                        show: true
+                    });
+                }
+            } else {
+                laserPointer.style.opacity = '0';
+                if (socket) {
+                    socket.emit('laser-pointer', { show: false });
+                }
+            }
+        }
+        
+        // Magnifier
+        function updateMagnifier(e) {
+            if (currentTool !== 'magnifier') {
+                magnifier.style.opacity = '0';
+                return;
+            }
+            
+            // Get canvas position relative to the slide container
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = slideContainer.getBoundingClientRect();
+            
+            // Calculate mouse position relative to canvas
+            const x = e.clientX - canvasRect.left;
+            const y = e.clientY - canvasRect.top;
+            
+            // Only show magnifier if mouse is within canvas bounds
+            if (x >= 0 && x <= canvasRect.width && y >= 0 && y <= canvasRect.height) {
+                // Position magnifier relative to slide container (accounting for canvas position)
+                const magnifierX = (canvasRect.left - containerRect.left) + x - magnifierSize/2;
+                const magnifierY = (canvasRect.top - containerRect.top) + y - magnifierSize/2;
+                
+                magnifier.style.left = magnifierX + 'px';
+                magnifier.style.top = magnifierY + 'px';
+                magnifier.style.width = magnifierSize + 'px';
+                magnifier.style.height = magnifierSize + 'px';
+                magnifier.style.opacity = '1';
+                
+                // Draw magnified content
+                drawMagnifiedContent(x, y);
+            } else {
+                magnifier.style.opacity = '0';
+            }
+        }
+        
+        function drawMagnifiedContent(centerX, centerY) {
+            const sourceSize = 50; // Size of area to magnify
+            const scale = magnifierSize / sourceSize;
+            
+            magnifierCtx.clearRect(0, 0, magnifierCanvas.width, magnifierCanvas.height);
+            magnifierCtx.save();
+            
+            // Calculate source coordinates based on canvas dimensions
+            const canvasRect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / canvasRect.width;
+            const scaleY = canvas.height / canvasRect.height;
+            const sourceX = centerX * scaleX - sourceSize/2;
+            const sourceY = centerY * scaleY - sourceSize/2;
+            
+            // Draw magnified area
+            try {
+                magnifierCtx.drawImage(
+                    canvas,
+                    sourceX, sourceY, sourceSize, sourceSize,
+                    0, 0, magnifierSize, magnifierSize
+                );
+            } catch (e) {
+                // Handle edge cases where source is outside canvas
+            }
+            
+            magnifierCtx.restore();
+        }
+        
+        // Spotlight
+        function updateSpotlight(e) {
+            if (currentTool !== 'spotlight') {
+                spotlightOverlay.style.opacity = '0';
+                return;
+            }
+            
+            // Get canvas position relative to the slide container
+            const canvasRect = canvas.getBoundingClientRect();
+            const containerRect = slideContainer.getBoundingClientRect();
+            
+            // Calculate mouse position relative to canvas
+            const x = e.clientX - canvasRect.left;
+            const y = e.clientY - canvasRect.top;
+            
+            // Only show spotlight if mouse is within canvas bounds
+            if (x >= 0 && x <= canvasRect.width && y >= 0 && y <= canvasRect.height) {
+                const spotlightRadius = 100;
+                
+                // Position spotlight relative to the canvas (since spotlightOverlay covers the canvas)
+                const maskStyle = `radial-gradient(circle ${spotlightRadius}px at ${x}px ${y}px, transparent 0%, transparent 40%, rgba(0,0,0,0.8) 70%)`;
+                
+                spotlightOverlay.style.background = maskStyle;
+                spotlightOverlay.style.opacity = '1';
+                
+                // Send to viewers
+                if (socket) {
+                    socket.emit('spotlight', {
+                        x: x / canvasRect.width,
+                        y: y / canvasRect.height,
+                        show: true
+                    });
+                }
+            } else {
+                spotlightOverlay.style.opacity = '0';
+                if (socket) {
+                    socket.emit('spotlight', { show: false });
+                }
+            }
+        }
+        
+        // Clear annotations
+        function clearAnnotations() {
+            annotationCtx.clearRect(0, 0, annotationCanvas.width, annotationCanvas.height);
+            magnifierCtx.clearRect(0, 0, magnifierCanvas.width, magnifierCanvas.height);
+            annotations = [];
+            
+            // Send clear event to viewers
+            if (socket) {
+                socket.emit('clear-annotations');
+            }
+        }
+        
+        // Navigation
+        function goToSlide(slideNum, fromSessionRestore = false) {
+            if (slideNum < 1 || slideNum > totalSlides) return;
+            
+            currentSlide = slideNum;
+            renderSlide(currentSlide);
+            updateUI();
+            
+            // Reset slide timer when navigating to a new slide (unless from session restore)
+            if (!fromSessionRestore && !isRestoringSession) {
+                resetSlideTimer();
+            }
+            
+            // Don't emit slide-change when restoring session state to avoid loops
+            if (socket && !fromSessionRestore && !isRestoringSession) {
+                socket.emit('slide-change', { slideNumber: currentSlide });
+            }
+            
+            console.log(`Navigated to slide ${slideNum}${fromSessionRestore ? ' (from session restore)' : ''}`);
+        }
+        
+        function nextSlide() {
+            if (currentSlide < totalSlides) {
+                goToSlide(currentSlide + 1);
+            }
+        }
+        
+        function prevSlide() {
+            if (currentSlide > 1) {
+                goToSlide(currentSlide - 1);
+            }
+        }
+        
+        function updateUI() {
+            currentSlideSpan.textContent = currentSlide;
+            totalSlidesSpan.textContent = totalSlides;
+            slideInput.value = currentSlide;
+            prevBtn.disabled = currentSlide <= 1;
+            nextBtn.disabled = currentSlide >= totalSlides;
+            
+            // Update bottom navigation
+            bottomCurrentSlide.textContent = currentSlide;
+            bottomTotalSlides.textContent = totalSlides;
+            bottomPrevBtn.disabled = currentSlide <= 1;
+            bottomNextBtn.disabled = currentSlide >= totalSlides;
+            
+            // Update zoom display
+            const zoomPercent = Math.round(currentZoom * 100) + '%';
+            zoomLevel.textContent = fitMode === 'custom' ? zoomPercent : fitMode.toUpperCase();
+            
+            // Update zoom buttons
+            zoomOutBtn.disabled = currentZoom <= 0.25;
+            zoomInBtn.disabled = currentZoom >= 5.0;
+            
+            // Update fit buttons
+            document.querySelectorAll('.fit-btn').forEach(btn => btn.classList.remove('active'));
+            if (fitMode !== 'custom') {
+                const activeBtn = document.getElementById(`fit${fitMode.charAt(0).toUpperCase() + fitMode.slice(1)}Btn`);
+                if (activeBtn) activeBtn.classList.add('active');
+            }
+        }
+        
+        // Event listeners
+        prevBtn.addEventListener('click', prevSlide);
+        nextBtn.addEventListener('click', nextSlide);
+        clearBtn.addEventListener('click', clearAnnotations);
+        resetTimerBtn.addEventListener('click', resetAllTimers);
+        
+        // Bottom navigation event listeners
+        bottomPrevBtn.addEventListener('click', prevSlide);
+        bottomNextBtn.addEventListener('click', nextSlide);
+        
+        // Direct slide navigation
+        function goToSlideByInput() {
+            const slideNum = parseInt(slideInput.value);
+            if (slideNum >= 1 && slideNum <= totalSlides) {
+                goToSlide(slideNum);
+            } else {
+                // Reset to current slide if invalid
+                slideInput.value = currentSlide;
+            }
+        }
+        
+        // Direct navigation event listeners
+        goToSlideBtn.addEventListener('click', goToSlideByInput);
+        slideInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                goToSlideByInput();
+            }
+        });
+        slideInput.addEventListener('blur', goToSlideByInput);
+        
+        // Tool selection
+        toolButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                setTool(btn.dataset.tool);
+            });
+        });
+        
+        // Color selection
+        colorButtons.forEach(btn => {
+            btn.addEventListener('click', () => {
+                currentColor = btn.dataset.color;
+                colorButtons.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+            });
+        });
+        
+        // Size controls
+        penSizeSlider.addEventListener('input', (e) => {
+            penSize = parseInt(e.target.value);
+            penSizeValue.textContent = penSize;
+        });
+        
+        magnifierSizeSlider.addEventListener('input', (e) => {
+            magnifierSize = parseInt(e.target.value);
+            magnifierSizeValue.textContent = magnifierSize;
+        });
+        
+        // Zoom and fit controls
+        zoomInBtn.addEventListener('click', zoomIn);
+        zoomOutBtn.addEventListener('click', zoomOut);
+        fitWidthBtn.addEventListener('click', () => setFitMode('width'));
+        fitHeightBtn.addEventListener('click', () => setFitMode('height'));
+        fitPageBtn.addEventListener('click', () => setFitMode('page'));
+        
+        // Canvas events
+        annotationCanvas.addEventListener('mousedown', startDrawing);
+        annotationCanvas.addEventListener('mousemove', draw);
+        annotationCanvas.addEventListener('mouseup', stopDrawing);
+        
+        canvasStack.addEventListener('mousemove', (e) => {
+            updateLaserPointer(e);
+            updateMagnifier(e);
+            updateSpotlight(e);
+        });
+        
+        canvasStack.addEventListener('mouseleave', () => {
+            laserPointer.style.opacity = '0';
+            magnifier.style.opacity = '0';
+            spotlightOverlay.style.opacity = '0';
+            
+            if (socket) {
+                socket.emit('laser-pointer', { show: false });
+            }
+        });
+        
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowLeft':
+                case 'ArrowUp':
+                    e.preventDefault();
+                    prevSlide();
+                    break;
+                case 'ArrowRight':
+                case 'ArrowDown':
+                case ' ':
+                    e.preventDefault();
+                    nextSlide();
+                    break;
+                case '1':
+                    setTool('pointer');
+                    break;
+                case '2':
+                    setTool('laser');
+                    break;
+                case '3':
+                    setTool('pen');
+                    break;
+                case '4':
+                    setTool('highlighter');
+                    break;
+                case '5':
+                    setTool('magnifier');
+                    break;
+                case '6':
+                    setTool('spotlight');
+                    break;
+                case 'c':
+                case 'C':
+                    clearAnnotations();
+                    break;
+            }
+        });
+        
+        // Calculate optimal scale based on fit mode
+        function calculateOptimalScale(page, attempt = 1) {
+            const viewport = page.getViewport({ scale: 1, rotation: 0 });
+            const container = slideContainer;
+            let containerWidth = container.clientWidth;
+            let containerHeight = container.clientHeight;
+            
+            // If container dimensions are 0 or too small, use fallback or retry
+            if (containerWidth <= 50 || containerHeight <= 50) {
+                if (attempt <= 3) {
+                    console.log(`Container dimensions too small (${containerWidth}x${containerHeight}), attempt ${attempt}/3`);
+                    // Use fallback dimensions based on window size
+                    containerWidth = Math.max(containerWidth, window.innerWidth * 0.8);
+                    containerHeight = Math.max(containerHeight, window.innerHeight * 0.8);
+                } else {
+                    console.warn('Using minimal fallback dimensions after 3 attempts');
+                    containerWidth = 800;
+                    containerHeight = 600;
+                }
+            }
+            
+            console.log(`Calculating scale: container ${containerWidth}x${containerHeight}, viewport ${viewport.width}x${viewport.height}`);
+            
+            // Account for some padding
+            const availableWidth = containerWidth * 0.9;
+            const availableHeight = containerHeight * 0.9;
+            
+            let scale;
+            switch (fitMode) {
+                case 'width':
+                    scale = availableWidth / viewport.width;
+                    break;
+                case 'height':
+                    scale = availableHeight / viewport.height;
+                    break;
+                case 'page':
+                    const scaleX = availableWidth / viewport.width;
+                    const scaleY = availableHeight / viewport.height;
+                    scale = Math.min(scaleX, scaleY);
+                    break;
+                case 'custom':
+                default:
+                    scale = currentZoom;
+                    break;
+            }
+            
+            // Ensure scale is reasonable
+            scale = Math.max(0.1, Math.min(5.0, scale));
+            console.log(`Calculated scale: ${scale} for fitMode: ${fitMode}`);
+            
+            return scale;
+        }
+
+        // Show zoom indicator
+        function showZoomIndicator(text) {
+            zoomIndicator.textContent = text;
+            zoomIndicator.classList.add('show');
+            setTimeout(() => {
+                zoomIndicator.classList.remove('show');
+            }, 2000);
+        }
+
+        // Zoom functions
+        function zoomIn() {
+            if (currentZoom < 5.0) {
+                fitMode = 'custom';
+                currentZoom = Math.min(5.0, currentZoom + 0.25);
+                renderSlide(currentSlide);
+                updateUI();
+                showZoomIndicator('Custom Zoom');
+            }
+        }
+        
+        function zoomOut() {
+            if (currentZoom > 0.25) {
+                fitMode = 'custom';
+                currentZoom = Math.max(0.25, currentZoom - 0.25);
+                renderSlide(currentSlide);
+                updateUI();
+                showZoomIndicator('Custom Zoom');
+            }
+        }
+        
+        // Fit mode functions
+        function setFitMode(mode) {
+            fitMode = mode;
+            renderSlide(currentSlide);
+            updateUI();
+            showZoomIndicator(`Fit: ${mode.charAt(0).toUpperCase() + mode.slice(1)}`);
+        }
+        
+        // Initialize with improved timing
+        function initializePresenter() {
+            // Ensure DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', initializePresenter);
+                return;
+            }
+            
+            console.log('Initializing presenter...');
+            setTool('pointer');
+            updateCursor();
+            
+            // Initialize socket first, then wait briefly before loading PDF
+            initSocket();
+            
+            // Small delay to ensure socket connection is established
+            setTimeout(() => {
+                if (!currentPdfFile && !isRestoringSession) {
+                    loadPDF();
+                }
+            }, 200);
+        }
+        
+        // Start initialization
+        initializePresenter();
+        // Auto-hide menu functionality
+        let menuHideTimeout;
+        const controlsPanel = document.querySelector('.controls-panel');
+        const menuTab = document.querySelector('.menu-tab');
+        
+        function showMenu() {
+            controlsPanel.classList.add('show');
+            menuTab.innerHTML = '◀';
+            menuTab.title = 'Hide Menu (F2)';
+            clearTimeout(menuHideTimeout);
+        }
+        
+        function hideMenu() {
+            menuHideTimeout = setTimeout(() => {
+                controlsPanel.classList.remove('show');
+                menuTab.innerHTML = '⚙️';
+                menuTab.title = 'Show Menu (F2)';
+            }, 1000); // Hide after 1 second of no interaction
+        }
+        
+        function keepMenuOpen() {
+            clearTimeout(menuHideTimeout);
+        }
+        
+        // Toggle menu function
+        function toggleMenu() {
+            if (controlsPanel.classList.contains('show')) {
+                hideMenu();
+            } else {
+                showMenu();
+            }
+        }
+        
+        // Menu tab click handler
+        menuTab.addEventListener('click', () => {
+            toggleMenu();
+        });
+        
+        // Show menu when hovering over the tab area or panel
+        controlsPanel.addEventListener('mouseenter', () => {
+            showMenu();
+        });
+        
+        // Keep menu open while mouse is over it
+        controlsPanel.addEventListener('mouseover', () => {
+            keepMenuOpen();
+        });
+        
+        // Hide menu when mouse leaves
+        controlsPanel.addEventListener('mouseleave', () => {
+            hideMenu();
+        });
+        
+        // Show menu when mouse approaches the right edge of screen
+        document.addEventListener('mousemove', (e) => {
+            const screenWidth = window.innerWidth;
+            const mouseX = e.clientX;
+            
+            // Show menu when mouse is within 50px of right edge
+            if (mouseX > screenWidth - 50) {
+                showMenu();
+            }
+        });
+        
+        // Keyboard shortcut to toggle menu (F2 key)
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'F2') {
+                e.preventDefault();
+                toggleMenu();
+            }
+        });
+        
+        // Initialize menu as hidden
+        document.addEventListener('DOMContentLoaded', () => {
+            setTimeout(() => {
+                hideMenu();
+            }, 3000); // Auto-hide after 3 seconds on page load
+        });
+        
+        // Cleanup timer when page unloads
+        window.addEventListener('beforeunload', () => {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+            }
+        });
+    </script>
+</body>
+</html> 

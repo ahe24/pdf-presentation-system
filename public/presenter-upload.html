@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Create Presentation - PDF Presentation System</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            width: 100%;
+            max-width: 600px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #fff, #f0f0f0);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .form-group {
+            margin-bottom: 30px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .form-group input {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-group input::placeholder {
+            color: rgba(255, 255, 255, 0.7);
+        }
+        
+        .form-group input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+        
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+        
+        .file-upload input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 30px;
+            border: 2px dashed rgba(255, 255, 255, 0.5);
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+        
+        .file-upload-label:hover {
+            border-color: rgba(255, 255, 255, 0.8);
+            background: rgba(255, 255, 255, 0.2);
+        }
+        
+        .file-upload-label.has-file {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.2);
+        }
+        
+        .file-icon {
+            font-size: 2rem;
+            margin-bottom: 10px;
+            display: block;
+        }
+        
+        .button {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+        
+        .button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+        }
+        
+        .button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .create-without-pdf {
+            background: linear-gradient(45deg, #2196F3, #1976D2);
+            margin-top: 10px;
+        }
+        
+        .status-message {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            font-weight: 600;
+            display: none;
+        }
+        
+        .status-message.success {
+            background: rgba(76, 175, 80, 0.2);
+            border: 1px solid rgba(76, 175, 80, 0.5);
+        }
+        
+        .status-message.error {
+            background: rgba(244, 67, 54, 0.2);
+            border: 1px solid rgba(244, 67, 54, 0.5);
+        }
+        
+        .session-info {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .session-info h3 {
+            margin-bottom: 15px;
+            color: #4CAF50;
+        }
+        
+        .url-container {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .url-input {
+            flex: 1;
+            padding: 10px;
+            background: rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 5px;
+            color: white;
+            font-size: 0.9rem;
+        }
+        
+        .copy-btn {
+            padding: 10px 15px;
+            background: #2196F3;
+            border: none;
+            border-radius: 5px;
+            color: white;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .copy-btn:hover {
+            background: #1976D2;
+        }
+        
+        .home-link {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: white;
+            text-decoration: none;
+            font-size: 1.1rem;
+            opacity: 0.8;
+            transition: opacity 0.3s ease;
+        }
+        
+        .home-link:hover {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body>
+    <a href="/" class="home-link">← Back to Home</a>
+    
+    <div class="container">
+        <div class="header">
+            <h1>Create Presentation</h1>
+            <p>Upload your PDF and start presenting to your audience</p>
+        </div>
+        
+        <form id="uploadForm">
+            <div class="form-group">
+                <label for="presenterName">Your Name</label>
+                <input 
+                    type="text" 
+                    id="presenterName" 
+                    name="presenterName" 
+                    placeholder="Enter your name" 
+                    required
+                >
+            </div>
+            
+            <div class="form-group">
+                <label>PDF File (Optional)</label>
+                <div class="file-upload">
+                    <input type="file" id="pdfFile" name="pdf" accept=".pdf">
+                    <label for="pdfFile" class="file-upload-label" id="fileLabel">
+                        <div>
+                            <span class="file-icon">📄</span>
+                            <div>Click to upload PDF or drag and drop</div>
+                            <small>Maximum file size: 50MB</small>
+                        </div>
+                    </label>
+                </div>
+            </div>
+            
+            <button type="submit" class="button" id="uploadBtn">
+                Create Session & Upload PDF
+            </button>
+            
+            <button type="button" class="button create-without-pdf" id="createWithoutPdfBtn">
+                Create Session Without PDF
+            </button>
+        </form>
+        
+        <div class="status-message" id="statusMessage"></div>
+        
+        <div class="session-info" id="sessionInfo">
+            <h3>Session Created Successfully! 🎉</h3>
+            <p><strong>Session ID:</strong> <span id="sessionId"></span></p>
+            
+            <div style="margin-top: 15px;">
+                <label><strong>Presenter URL:</strong></label>
+                <div class="url-container">
+                    <input type="text" class="url-input" id="presenterUrl" readonly>
+                    <button type="button" class="copy-btn" onclick="copyUrl('presenterUrl')">Copy</button>
+                </div>
+            </div>
+            
+            <div style="margin-top: 10px;">
+                <label><strong>Viewer URL:</strong></label>
+                <div class="url-container">
+                    <input type="text" class="url-input" id="viewerUrl" readonly>
+                    <button type="button" class="copy-btn" onclick="copyUrl('viewerUrl')">Copy</button>
+                </div>
+            </div>
+            
+            <button type="button" class="button" onclick="startPresenting()" style="margin-top: 20px;">
+                Start Presenting
+            </button>
+        </div>
+    </div>
+
+    <script>
+        let currentSessionId = null;
+        
+        // File upload handling
+        const fileInput = document.getElementById('pdfFile');
+        const fileLabel = document.getElementById('fileLabel');
+        
+        fileInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                fileLabel.classList.add('has-file');
+                fileLabel.innerHTML = '<div><span class="file-icon">✅</span><div>' + file.name + '</div><small>' + (file.size / 1024 / 1024).toFixed(2) + ' MB</small></div>';
+            } else {
+                resetFileLabel();
+            }
+        });
+        
+        function resetFileLabel() {
+            fileLabel.classList.remove('has-file');
+            fileLabel.innerHTML = '<div><span class="file-icon">📄</span><div>Click to upload PDF or drag and drop</div><small>Maximum file size: 50MB</small></div>';
+        }
+        
+        // Form submission
+        document.getElementById('uploadForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            await createSession(true);
+        });
+        
+        document.getElementById('createWithoutPdfBtn').addEventListener('click', async () => {
+            await createSession(false);
+        });
+        
+        async function createSession(withPdf) {
+            const presenterName = document.getElementById('presenterName').value.trim();
+            
+            if (!presenterName) {
+                showMessage('Please enter your name', 'error');
+                return;
+            }
+            
+            if (withPdf && !fileInput.files[0]) {
+                showMessage('Please select a PDF file', 'error');
+                return;
+            }
+            
+            try {
+                setLoading(true);
+                
+                // Get or create user ID for session management
+                const creatorId = "presenter_admin";  // Fixed presenter ID
+                console.log('Presenter Upload - Using creatorId:', creatorId); // Debug log
+                
+                // Create session first
+                const sessionResponse = await fetch('/api/sessions', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ 
+                        presenterName,
+                        creatorId 
+                    })
+                });
+                
+                if (!sessionResponse.ok) {
+                    const error = await sessionResponse.json();
+                    throw new Error(error.error || 'Failed to create session');
+                }
+                
+                const sessionData = await sessionResponse.json();
+                currentSessionId = sessionData.sessionId;
+                
+                // Upload PDF if provided
+                if (withPdf && fileInput.files[0]) {
+                    const formData = new FormData();
+                    formData.append('pdf', fileInput.files[0]);
+                    
+                    const uploadResponse = await fetch('/api/sessions/' + currentSessionId + '/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (!uploadResponse.ok) {
+                        const error = await uploadResponse.json();
+                        throw new Error(error.error || 'Failed to upload PDF');
+                    }
+                }
+                
+                // Show session info
+                showSessionInfo(sessionData);
+                showMessage('Session created successfully!', 'success');
+                
+            } catch (error) {
+                showMessage('Error: ' + error.message, 'error');
+            } finally {
+                setLoading(false);
+            }
+        }
+        
+        function showSessionInfo(sessionData) {
+            document.getElementById('sessionId').textContent = sessionData.sessionId;
+            document.getElementById('presenterUrl').value = window.location.origin + sessionData.presenterUrl;
+            document.getElementById('viewerUrl').value = window.location.origin + sessionData.viewerUrl;
+            document.getElementById('sessionInfo').style.display = 'block';
+        }
+        
+        function copyUrl(inputId) {
+            const input = document.getElementById(inputId);
+            input.select();
+            document.execCommand('copy');
+            
+            const btn = input.nextElementSibling;
+            const originalText = btn.textContent;
+            btn.textContent = 'Copied!';
+            btn.style.background = '#4CAF50';
+            
+            setTimeout(() => {
+                btn.textContent = originalText;
+                btn.style.background = '#2196F3';
+            }, 2000);
+        }
+        
+        function startPresenting() {
+            if (currentSessionId) {
+                window.location.href = '/presenter/' + currentSessionId;
+            }
+        }
+        
+        function setLoading(isLoading) {
+            const uploadBtn = document.getElementById('uploadBtn');
+            const createBtn = document.getElementById('createWithoutPdfBtn');
+            
+            uploadBtn.disabled = isLoading;
+            createBtn.disabled = isLoading;
+            
+            if (isLoading) {
+                uploadBtn.textContent = 'Creating Session...';
+                createBtn.textContent = 'Creating Session...';
+            } else {
+                uploadBtn.textContent = 'Create Session & Upload PDF';
+                createBtn.textContent = 'Create Session Without PDF';
+            }
+        }
+        
+        function showMessage(message, type) {
+            const statusMessage = document.getElementById('statusMessage');
+            statusMessage.textContent = message;
+            statusMessage.className = 'status-message ' + type;
+            statusMessage.style.display = 'block';
+            
+            setTimeout(() => {
+                statusMessage.style.display = 'none';
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

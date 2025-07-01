@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug User ID</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f5f5f5;
+        }
+        .card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .user-id {
+            background: #e9ecef;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        .btn {
+            background: #007bff;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>🔍 User ID Debug Tool</h2>
+        <p><strong>Your browser's User ID:</strong></p>
+        <div class="user-id" id="userId">Loading...</div>
+        
+        <p><strong>Sessions for this User ID:</strong></p>
+        <div id="sessionsList">Loading...</div>
+        
+        <br>
+        <button class="btn" onclick="refreshData()">🔄 Refresh</button>
+        <button class="btn" onclick="clearUserId()">🗑️ Clear User ID (Generate New)</button>
+        
+        <hr style="margin: 20px 0;">
+        <h3>Why is my manage page empty?</h3>
+        <p>The manage page only shows sessions created by <strong>your specific user ID</strong>. If you:</p>
+        <ul>
+            <li>Created sessions via API/curl (for testing) - they have different user IDs</li>
+            <li>Cleared your browser data - you got a new user ID</li>
+            <li>Used a different browser/device - each has its own user ID</li>
+        </ul>
+        <p><strong>Solution:</strong> Create new sessions using <a href="/presenter">the presenter page</a>, and they'll appear in <a href="/manage">the manage page</a>.</p>
+    </div>
+
+    <script>
+        function getUserId() {
+            let userId = localStorage.getItem('presenterId');
+            if (!userId) {
+                userId = 'user_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+                localStorage.setItem('presenterId', userId);
+            }
+            return userId;
+        }
+
+        async function loadSessions() {
+            try {
+                const userId = getUserId();
+                const response = await fetch(`/api/my-sessions?userId=${userId}`);
+                const sessions = await response.json();
+                
+                const sessionsList = document.getElementById('sessionsList');
+                if (sessions.length === 0) {
+                    sessionsList.innerHTML = '<p style="color: #666; font-style: italic;">No sessions found for this user ID</p>';
+                } else {
+                    sessionsList.innerHTML = sessions.map(s => 
+                        `<div style="background: #f8f9fa; padding: 10px; margin: 5px 0; border-radius: 5px;">
+                            <strong>${s.presenterName}</strong><br>
+                            <small>ID: ${s.id}</small><br>
+                            <small>Created: ${new Date(s.createdAt).toLocaleString()}</small>
+                        </div>`
+                    ).join('');
+                }
+            } catch (error) {
+                document.getElementById('sessionsList').innerHTML = '<p style="color: red;">Error loading sessions</p>';
+            }
+        }
+
+        function refreshData() {
+            const userId = getUserId();
+            document.getElementById('userId').textContent = userId;
+            loadSessions();
+        }
+
+        function clearUserId() {
+            localStorage.removeItem('presenterId');
+            refreshData();
+            alert('User ID cleared! You now have a new user ID.');
+        }
+
+        // Load on page start
+        refreshData();
+    </script>
+</body>
+</html> 
