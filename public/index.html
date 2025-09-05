@@ -13,47 +13,79 @@
         
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #667eea 100%);
+            background-size: 400% 400%;
+            animation: gradientShift 15s ease infinite;
             color: white;
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
+            position: relative;
+        }
+        
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at 20% 80%, rgba(120, 119, 198, 0.3) 0%, transparent 50%),
+                        radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.1) 0%, transparent 50%),
+                        radial-gradient(circle at 40% 40%, rgba(120, 75, 162, 0.2) 0%, transparent 50%);
+            pointer-events: none;
+            z-index: -1;
+        }
+        
+        @keyframes gradientShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
         }
         
         .container {
-            max-width: 600px;
-            padding: 40px;
+            max-width: 1400px;
+            padding: 40px 20px;
             text-align: center;
+            margin: 0 auto;
         }
         
         .title {
-            font-size: 3rem;
-            font-weight: 700;
-            margin-bottom: 20px;
-            background: linear-gradient(45deg, #ffffff, #f0f0f0);
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 25px;
+            background: linear-gradient(45deg, #ffffff, #f8fafc);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
+            text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
         
         .subtitle {
-            font-size: 1.2rem;
-            margin-bottom: 40px;
-            opacity: 0.9;
+            font-size: 1.3rem;
+            margin-bottom: 50px;
+            opacity: 0.95;
+            font-weight: 300;
+            letter-spacing: 0.5px;
         }
         
         .auth-status {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 15px 25px;
-            margin-bottom: 30px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            padding: 20px 30px;
+            margin-bottom: 40px;
+            border: 1px solid rgba(255, 255, 255, 0.25);
             font-size: 1rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            margin-bottom: 40px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
         }
         
         .auth-user {
@@ -77,34 +109,48 @@
         }
         
         .main-card {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(15px);
+            border-radius: 24px;
             padding: 40px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.25);
             margin-bottom: 30px;
+            flex: 1;
+            min-width: 350px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        
+        .main-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 12px 48px rgba(0, 0, 0, 0.15);
         }
         
         .card-title {
-            font-size: 2rem;
-            font-weight: 600;
-            margin-bottom: 20px;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 18px;
             color: #ffffff;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
         }
         
         .card-description {
-            font-size: 1.1rem;
-            margin-bottom: 30px;
+            font-size: 1rem;
+            margin-bottom: 20px;
             opacity: 0.9;
-            line-height: 1.6;
+            line-height: 1.5;
         }
         
         .features {
             text-align: left;
-            margin-bottom: 35px;
-            max-width: 400px;
+            margin-bottom: 30px;
+            max-width: 450px;
             margin-left: auto;
             margin-right: auto;
+            background: rgba(255, 255, 255, 0.05);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
         
         .features ul {
@@ -115,7 +161,8 @@
         .features li {
             padding: 8px 0;
             font-size: 1rem;
-            opacity: 0.9;
+            opacity: 0.95;
+            line-height: 1.4;
         }
         
         .features li:before {
@@ -129,66 +176,54 @@
             display: inline-block;
             background: linear-gradient(45deg, #4f46e5, #7c3aed);
             color: white;
-            padding: 15px 40px;
-            border-radius: 30px;
+            padding: 16px 45px;
+            border-radius: 50px;
             text-decoration: none;
             font-weight: 600;
-            transition: all 0.3s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: none;
             cursor: pointer;
             font-size: 1.1rem;
+            box-shadow: 0 4px 16px rgba(79, 70, 229, 0.3);
+            letter-spacing: 0.5px;
         }
         
         .btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
+            transform: translateY(-3px) scale(1.02);
+            box-shadow: 0 8px 25px rgba(79, 70, 229, 0.4);
         }
         
         .btn-primary {
             background: linear-gradient(45deg, #059669, #0d9488);
             font-size: 1.2rem;
             padding: 18px 50px;
+            box-shadow: 0 4px 16px rgba(5, 150, 105, 0.3);
+        }
+        
+        .btn-primary:hover {
+            box-shadow: 0 8px 25px rgba(5, 150, 105, 0.4);
         }
         
         .btn-auth {
             background: linear-gradient(45deg, #dc2626, #b91c1c);
             font-size: 1.1rem;
-            padding: 15px 40px;
+            padding: 16px 45px;
+            box-shadow: 0 4px 16px rgba(220, 38, 38, 0.3);
+        }
+        
+        .btn-auth:hover {
+            box-shadow: 0 8px 25px rgba(220, 38, 38, 0.4);
         }
         
         .btn-secondary {
             background: linear-gradient(45deg, #7c3aed, #6366f1);
+            box-shadow: 0 4px 16px rgba(124, 58, 237, 0.3);
         }
         
-        .info {
-            background: rgba(255, 255, 255, 0.1);
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            padding: 25px;
-            border: 1px solid rgba(255, 255, 255, 0.2);
+        .btn-secondary:hover {
+            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.4);
         }
         
-        .info h3 {
-            margin-bottom: 15px;
-            color: #fbbf24;
-            font-size: 1.2rem;
-        }
-        
-        .network-info {
-            font-size: 0.95rem;
-            opacity: 0.8;
-            line-height: 1.6;
-        }
-        
-        .status-indicator {
-            display: inline-block;
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: #4ade80;
-            margin-right: 8px;
-            animation: pulse 2s infinite;
-        }
         
         @keyframes pulse {
             0% { opacity: 1; }
@@ -196,8 +231,60 @@
             100% { opacity: 1; }
         }
         
+        .cards-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 25px;
+            margin-bottom: 30px;
+        }
+        
+        .cards-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        
+        .single-card {
+            width: 100%;
+            max-width: 800px;
+            margin: 0 auto 30px auto;
+        }
+        
         .hidden {
             display: none !important;
+        }
+        
+        @media (max-width: 1024px) {
+            .cards-row {
+                grid-template-columns: 1fr;
+                gap: 25px;
+            }
+            
+            .main-card {
+                min-width: unset;
+                padding: 35px;
+            }
+        }
+        
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px 15px;
+            }
+            
+            .main-card {
+                padding: 30px 25px;
+            }
+            
+            .auth-status {
+                padding: 15px 20px;
+                margin-bottom: 30px;
+            }
+            
+            .title {
+                font-size: 2.5rem;
+            }
         }
         
         .modal {
@@ -274,85 +361,82 @@
         </div>
         
         <!-- Always visible: Join Sessions -->
-        <div class="main-card">
-            <h2 class="card-title">👀 강의 참여하기</h2>
-            <p class="card-description">실시간 강의를 시청하고 발표자와 상호작용하세요</p>
-            
-            <div class="features">
-                <ul>
-                    <li>실시간 슬라이드 동기화</li>
-                    <li>발표자 따라가기 또는 독립적으로 탐색</li>
-                    <li>발표자 주석 및 레이저 포인터 보기</li>
-                    <li>확대/축소 및 전체화면 지원</li>
-                </ul>
+        <div class="single-card">
+            <div class="main-card">
+                <h2 class="card-title">🎓 강의 참여하기</h2>
+                <p class="card-description">실시간 강의를 시청하고 발표자와 상호작용하세요</p>
+                
+                <div class="features">
+                    <ul>
+                        <li>실시간 슬라이드 동기화</li>
+                        <li>발표자 따라가기 또는 독립적으로 탐색</li>
+                        <li>발표자 주석 및 레이저 포인터 보기</li>
+                        <li>확대/축소 및 전체화면 지원</li>
+                    </ul>
+                </div>
+                
+                <a href="/session-selector.html" class="btn btn-primary">🚀 강의 목록 보기</a>
             </div>
-            
-            <a href="/session-selector.html" class="btn btn-primary">🚀 강의 목록 보기</a>
         </div>
         
         <!-- Visible to non-authenticated users: Login -->
         <div id="guestSection">
-            <div class="main-card">
-                <h2 class="card-title">👨‍🏫 발표자 로그인</h2>
-                <p class="card-description">강의 세션을 생성하고 관리하려면 로그인하세요</p>
-                
-                <div class="features">
-                    <ul>
-                        <li>최대 50MB PDF 파일 업로드</li>
-                        <li>실시간 시청자 수 확인</li>
-                        <li>주석 도구 및 레이저 포인터</li>
-                        <li>세션 관리 기능</li>
-                    </ul>
+            <div class="single-card">
+                <div class="main-card">
+                    <h2 class="card-title">👨‍🏫 발표자 로그인</h2>
+                    <p class="card-description">강의 세션을 생성하고 관리하려면 로그인하세요</p>
+                    
+                    <div class="features">
+                        <ul>
+                            <li>최대 50MB PDF 파일 업로드</li>
+                            <li>실시간 시청자 수 확인</li>
+                            <li>주석 도구 및 레이저 포인터</li>
+                            <li>세션 관리 기능</li>
+                        </ul>
+                    </div>
+                    
+                    <button class="btn btn-auth" onclick="showLoginModal()">🔐 발표자 로그인</button>
                 </div>
-                
-                <button class="btn btn-auth" onclick="showLoginModal()">🔐 발표자 로그인</button>
             </div>
         </div>
         
         <!-- Visible to authenticated presenters: Create & Manage -->
         <div id="presenterSection" class="hidden">
-            <div class="main-card">
-                <h2 class="card-title">📤 강의 생성하기</h2>
-                <p class="card-description">PDF를 업로드하고 청중에게 발표를 시작하세요</p>
-                
-                <div class="features">
-                    <ul>
-                        <li>최대 50MB PDF 파일 업로드</li>
-                        <li>실시간 시청자 수 확인</li>
-                        <li>주석 도구 및 레이저 포인터</li>
-                        <li>다중 세션 지원</li>
-                    </ul>
+            <div class="cards-row">
+                <div class="main-card">
+                    <h2 class="card-title">📤 강의 생성하기</h2>
+                    <p class="card-description">PDF를 업로드하고 청중에게 발표를 시작하세요</p>
+                    
+                    <div class="features">
+                        <ul>
+                            <li>최대 50MB PDF 파일 업로드</li>
+                            <li>실시간 시청자 수 확인</li>
+                            <li>주석 도구 및 레이저 포인터</li>
+                            <li>다중 세션 지원</li>
+                        </ul>
+                    </div>
+                    
+                    <a href="/presenter-upload.html" class="btn btn-primary">📤 발표 시작하기</a>
                 </div>
-                
-                <a href="/presenter-upload.html" class="btn btn-primary">📤 발표 시작하기</a>
-            </div>
 
-            <div class="main-card">
-                <h2 class="card-title">⚙️ 세션 관리하기</h2>
-                <p class="card-description">생성한 강의 세션을 확인, 재개 또는 삭제하세요</p>
-                
-                <div class="features">
-                    <ul>
-                        <li>생성한 모든 세션 보기</li>
-                        <li>기존 강의 재개하기</li>
-                        <li>시청자 활동 모니터링</li>
-                        <li>완료된 세션 삭제하기</li>
-                    </ul>
+                <div class="main-card">
+                    <h2 class="card-title">⚙️ 세션 관리하기</h2>
+                    <p class="card-description">생성한 강의 세션을 확인, 재개 또는 삭제하세요</p>
+                    
+                    <div class="features">
+                        <ul>
+                            <li>생성한 모든 세션 보기</li>
+                            <li>기존 강의 재개하기</li>
+                            <li>시청자 활동 모니터링</li>
+                            <li>완료된 세션 삭제하기</li>
+                        </ul>
+                    </div>
+                    
+                    <a href="/session-manager.html" class="btn btn-secondary">🔧 세션 관리하기</a>
                 </div>
-                
-                <a href="/session-manager.html" class="btn btn-secondary">🔧 세션 관리하기</a>
             </div>
         </div>
         
-        <div class="info">
-            <h3><span class="status-indicator"></span>시스템 기능</h3>
-            <div class="network-info">
-                <p><strong>다중 세션 지원:</strong> 최대 50개 동시 강의 지원</p>
-                <p><strong>수동 관리:</strong> 인터페이스를 통한 세션 관리</p>
-                <p><strong>네트워크 공유:</strong> "localhost"를 IP 주소로 변경하여 사용</p>
-                <p><strong>예시:</strong> http://192.168.1.100:3002</p>
-            </div>
-        </div>
     </div>
 
     <!-- Login Modal -->
